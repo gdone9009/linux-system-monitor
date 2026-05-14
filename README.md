@@ -242,24 +242,38 @@ ss -tln
 
 ## 6. 요구사항 수행 결과 및 검증 (Evidence)
 
-### 6.1 애플리케이션 부트 시퀀스 검증
+### 6.1 인프라 환경 및 패키지 무결성 검증
 
-비루트 계정으로 실행 시 5단계 보안 검증을 통과하는 로그를 확인합니다.
+실제 OrbStack VM에서 수행한 기초 환경 구축 결과를 데이터로 증명합니다.
 
 ```text
-> Starting Agent Boot Sequence...
-[1/5] Checking User Account           [OK]
-[2/5] Verifying Environment Variables [OK]
-[3/5] Checking Required Files         [OK]
-... All Boot Checks Passed!
+# [검증 1] OS 및 커널 정보 확인 (README 5.1.7 준수)
+$ cat /etc/os-release | grep PRETTY_NAME
+PRETTY_NAME="Ubuntu 24.04 LTS"
+
+# [검증 2] 필수 패키지 설치 상태 확인 (README 5.1.6 준수)
+$ dpkg -l | grep -E "ssh|ufw|cron|acl" | awk '{print $2, $3}'
+openssh-server 1:9.6p1-3ubuntu13
+ufw 0.36.2-1
+cron 3.0pl1-151ubuntu1
+acl 2.3.2-1build1
 
 ```
 
-### 6.2 관제 데이터 로깅 (`monitor.log`)
+### 6.2 디렉토리 구조 및 환경 변수 활성화 검증
 
-```text
-[2026-05-14 14:10:02] PID:192 CPU:11.1% MEM:6.0% DISK_USED:1%
-[2026-05-14 14:11:01] PID:192 CPU:2.0% MEM:4.7% DISK_USED:1%
+설계한 아키텍처와 변수가 시스템에 올바르게 주입되었는지 확인합니다.
+
+```bash
+# [검증 3] AGENT_HOME 하위 디렉토리 생성 결과 (README 4.1 준수)
+$ ls -F $AGENT_HOME
+api_keys/  bin/  conf/  log/  setup/  upload_files/
+
+# [검증 4] 전역 환경 변수 로드 확인
+$ env | grep AGENT
+AGENT_HOME=/home/ubuntu/agent-app
+AGENT_LOG_DIR=/var/log/agent-app
+AGENT_PORT=15034
 
 ```
 
@@ -267,12 +281,18 @@ ss -tln
 
 ## 7. 트러블슈팅 (Troubleshooting)
 
-### 7.1 SSH 포트 변경 후 접속 불가 우려
+### 7.1 `.bash_profile` 환경 변수 미반영 오류
+
+* **문제:** 스크립트 실행 후 `echo $AGENT_HOME` 결과가 공백으로 나옴.
+* **원인:** 스크립트가 파일을 수정만 했을 뿐, 현재 실행 중인 쉘 세션에는 변경 사항이 로드되지 않음.
+* **해결:** `source ~/.bash_profile` 명령어를 명시적으로 실행하여 즉시 반영 완료.
+
+### 7.2 SSH 포트 변경 후 접속 불가 우려
 
 * **문제:** 포트 변경 후 방화벽(UFW)을 먼저 켤 경우 본인의 접속이 차단될 위험이 있음.
 * **해결:** `ufw enable` 전 `ufw allow 20022/tcp`를 우선 실행하는 순서의 강제화를 통해 서비스 가용성을 유지함.
 
-### 7.2 Cron 실행 환경의 독립성 이슈
+### 7.3 Cron 실행 환경의 독립성 이슈
 
 * **문제:** 터미널에서는 정상인 스크립트가 Cron에서 실행 시 환경 변수 미인식으로 실패함.
 * **해결:** 스크립트 내부에 `source ~/.bash_profile`을 명시적으로 호출하거나 절대 경로를 사용하여 실행 환경을 보정함.
@@ -295,6 +315,6 @@ ss -tln
 
 ### 9.1 최종 제출 결과물
 
-* `master.sh` 및 단계별 설정 스크립트 일체
-* `/var/log/agent-app/` 내 `monitor.log` 및 `cron.log` 발췌본
-* 본 기술 문서 (`README.md`)
+* **스크립트:** `setup/01_env_setup.sh` (인프라 자동 구축용)
+* **로그 파일:** `$AGENT_LOG_DIR/setup.log` (구축 과정 증빙 자료)
+* **기술 문서:** `README.md` (본 지식 창고 문서)
