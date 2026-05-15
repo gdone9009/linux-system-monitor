@@ -8,7 +8,7 @@
 # =================================================================
 
 # 1. 환경 변수 정의 (README 5.1.2 및 5.2.2 기준)
-export AGENT_HOME="/home/ubuntu/agent-app"
+export AGENT_HOME="/home/gdone90098008/agent-app"
 export AGENT_LOG_DIR="/var/log/agent-app"
 
 echo "알림: 인프라 구축 프로세스를 시작합니다..."

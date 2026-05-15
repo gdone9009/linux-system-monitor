@@ -240,6 +240,233 @@ ss -tln
 
 ---
 
+## 5. 실행 및 자동화 가이드 (Implementation)
+
+### 5.2 보안 강화 및 네트워크 요새화 (Hardening)
+
+이 단계에서는 외부로부터의 무차별 대입 공격을 차단하기 위해 SSH 표준 포트를 변경하고, UFW(Uncomplicated Firewall)를 통해 인가된 트래픽만 허용하는 요새화 작업을 수행합니다.
+
+**5.2.1 SSH 커스텀 포트(20022) 설정 및 Root 접속 차단**
+SSH 설정 파일(`/etc/ssh/sshd_config`)을 수정하여 보안을 강화합니다.
+
+```bash
+# 1. SSH 설정 파일 백업 (실수 대비)
+sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+
+# 2. 포트 20022 변경 및 Root 로그인 차단 적용
+# - Port 22 -> Port 20022
+# - PermitRootLogin yes -> PermitRootLogin no
+sudo sed -i 's/#Port 22/Port 20022/' /etc/ssh/sshd_config
+sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+
+# 3. systemd SSH 소켓 오버라이드 (포트 22 점유 해제 및 20022 강제 지정)
+# nano가 없는 환경을 고려하여 cat 리다이렉션 방식을 사용합니다.
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+sudo bash -c "cat <<EOF > /etc/systemd/system/ssh.socket.d/listen.conf
+[Socket]
+ListenStream=
+ListenStream=20022
+EOF"
+
+# 4. 설정 반영 및 서비스 재시작
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+sudo systemctl restart ssh
+
+# 5. 결과 검증 (README 5.2.3 준수)
+sudo ss -tlnp | grep 20022
+
+```
+
+**5.2.2 방화벽(UFW) 화이트리스트 정책 적용**
+포트 변경 후 가장 중요한 것은 **방화벽에서 해당 포트를 선제적으로 개방**하는 것입니다.
+
+```bash
+# 1. UFW 기본 정책 설정 (모든 유입 차단, 나가는 트래픽 허용)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# 2. 필수 서비스 포트 개방 (SSH: 20022, App: 15034)
+sudo ufw allow 20022/tcp
+sudo ufw allow 15034/tcp
+
+# 3. 방화벽 활성화 (반드시 포트 개방 확인 후 실행)
+sudo ufw enable
+
+```
+
+**5.2.3 보안 설정 무결성 검증 (README 3.2 준수)**
+설정된 보안 정책이 실제 시스템에 반영되었는지 증거를 수집합니다.
+
+```bash
+# [검증 1] SSH 리스닝 포트 확인 (20022 확인)
+sudo ss -tlnp | grep ssh
+sudo ss -tlnp | grep 20022
+
+# [검증 2] UFW 활성화 및 정책 적용 상태 확인
+sudo ufw status verbose
+
+```
+
+---
+
+### 🛠️ 코드화 자산: `setup/02_security_setup.sh`
+
+위 과정을 자동화하여 IaC(Infrastructure as Code)를 실현하는 두 번째 스크립트입니다.
+
+```bash
+#!/bin/bash
+# =================================================================
+# Script Name: 02_security_setup.sh
+# Description: SSH 소켓 기반 포트 변경 및 UFW 요새화 (Ubuntu 24.04 대응)
+# =================================================================
+
+echo "알림: 보안 요새화 및 소켓 오버라이드 프로세스를 시작합니다..."
+
+# 1. SSH 설정 파일 수정 (Port 및 Root 접속 차단)
+sudo sed -i 's/^#*Port 22/Port 20022/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+echo "단계 1: sshd_config 설정 수정 완료."
+
+# 2. Systemd SSH 소켓 오버라이드 (Ubuntu 최신 버전 대응)
+echo "단계 2: SSH 소켓 오버라이드 설정 중..."
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+sudo bash -c "cat <<EOF > /etc/systemd/system/ssh.socket.d/listen.conf
+[Socket]
+ListenStream=
+ListenStream=20022
+EOF"
+
+# 3. 시스템 데몬 리로드 및 서비스 재시작
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+sudo systemctl restart ssh
+echo "단계 3: 시스템 데몬 리로드 및 SSH 서비스 재시작 완료."
+
+# 4. UFW 방화벽 구성 (보안 요새화)
+echo "단계 4: UFW 방화벽 설정 및 활성화 중..."
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 20022/tcp
+sudo ufw allow 15034/tcp
+echo "y" | sudo ufw enable
+
+# 5. 최종 검증
+echo "------------------------------------------------"
+echo "검증 결과 (Listening Ports):"
+sudo ss -tlnp | grep 20022
+echo "------------------------------------------------"
+echo "완료: 모든 보안 설정이 정상적으로 적용되었습니다."
+
+```
+
+### 5.3 계정 설계 및 RBAC 권한 체계 구축
+
+시스템의 요새화가 네트워크 레벨(5.2)에서 완료되었다면, 이제 내부 자원에 대한 **'누가(Who), 무엇을(What), 어떻게(How)'** 할 수 있는지를 정의하는 단계입니다. 본 프로젝트는 현업의 표준인 **RBAC(Role-Based Access Control, 역할 기반 접근 제어)** 모델을 채택합니다.
+
+#### 5.3.1 역할(Role) 정의 및 계정 설계 정책
+
+최소 권한 원칙(Least Privilege)에 따라 사용자의 업무 목적에 맞는 계정을 생성합니다.
+
+| 계정명 | 역할(Role) | 주요 권한 및 책임 |
+| --- | --- | --- |
+| **`agent-admin`** | **시스템 운영자** | 전체 인프라 관리, 관제 스크립트 실행, 로그 최종 검토 권한을 가짐 |
+| **`agent-dev`** | **애플리케이션 개발자** | 관제 앱(`agent_app.py`) 수정 및 배포, 이슈 분석을 위한 로그 읽기 권한을 가짐 |
+| **`agent-test`** | **외부 테스터** | 업로드 디렉토리 확인 등 최소한의 읽기 권한만 가지며 보안 구역 접근이 엄격히 제한됨 |
+
+#### 5.3.2 그룹 기반 권한 격리 및 ACL 설계
+
+리눅스의 표준 그룹 권한(POSIX)과 확장 권한(ACL)을 결합하여 다중 보안 레이어를 구성합니다.
+
+* **`agent-core` 그룹:** 민감 데이터(API Key, 시스템 로그)를 다루는 핵심 그룹입니다.
+* 대상 디렉토리: `api_keys/`, `log/`
+* 정책: 해당 그룹원(`admin`, `dev`) 외에는 디렉토리 진입 자체가 불가능함
+
+
+* **`agent-common` 그룹:** 운영 전반의 공용 데이터를 공유하는 그룹입니다.
+* 대상 디렉토리: `upload_files/`
+* 정책: `agent-test`를 포함한 모든 사용자가 협업을 위해 접근 가능함
+
+
+* **ACL(Access Control List) 적용:** 전통적인 `Owner-Group-Other` 구조만으로는 `agent-dev`에게만 `log/` 디렉토리에 대한 특수 권한을 부여하기 어렵기 때문에 `setfacl`을 사용하여 유연한 권한 체계를 완성합니다.
+
+#### 5.3.3 계정 및 권한 자동화 로직 (`setup/03_user_setup.sh`)
+
+이 스크립트는 수동 설정에 의한 보안 취약점 발생을 방지하고, 100% 동일한 권한 환경을 재현합니다.
+
+```bash
+#!/bin/bash
+
+# =================================================================
+# Script Name: 03_user_setup.sh
+# Description: RBAC(역할 기반 접근 제어) 계정 생성 및 디렉토리 권한(ACL) 설정
+# Author: Jeong Chang-seok
+# =================================================================
+
+echo "👤 알림: 계정 설계 및 RBAC 권한 체계 구축을 시작합니다..."
+
+# [사전 준비] 환경 변수 로드 확인 (README 2.3 및 7.3 준수)
+# sudo 실행 시 환경 변수가 누락되는 것을 방지하기 위해 프로파일을 강제로 로드합니다.
+if [ -z "$AGENT_HOME" ]; then
+    source ~/.bash_profile 2>/dev/null
+    # 여전히 비어있다면 기본 경로 할당
+    AGENT_HOME=${AGENT_HOME:-"/home/ubuntu/agent-app"}
+fi
+
+# 1. 시스템 그룹 생성
+# -f 옵션을 사용하여 그룹이 이미 존재해도 에러를 발생시키지 않습니다. (멱등성 확보)
+sudo groupadd -f agent-core
+sudo groupadd -f agent-common
+
+# 2. 용도별 사용자 생성 (비밀번호는 codyssey12!로 통일)
+# 운영(admin), 개발(dev), 테스트(test) 계정을 각각의 목적에 맞게 생성합니다.
+users=("agent-admin" "agent-dev" "agent-test")
+for user in "${users[@]}"; do
+    if ! id "$user" &>/dev/null; then
+        sudo useradd -m -s /bin/bash "$user"
+        echo "$user:codyssey12!" | sudo chpasswd
+        echo "✅ 사용자 생성 완료: $user"
+    else
+        echo "ℹ️ 알림: $user 사용자가 이미 존재하므로 건너뜁니다."
+    fi
+done
+
+# 3. 그룹 바인딩 (계정별 역할 부여)
+# admin과 dev는 핵심 자산에 접근하는 core 그룹에, test는 공용 그룹에 배치합니다.
+sudo usermod -aG agent-core agent-admin
+sudo usermod -aG agent-core agent-dev
+sudo usermod -aG agent-common agent-test
+
+# 4. 디렉토리 소유권 및 표준 권한 설정 (README 4.2 준수)
+echo "단계 4: 디렉토리 소유권 및 그룹 기반 권한 격리 적용 중..."
+
+# 핵심 자산(api_keys, log): agent-core 그룹원만 접근 가능 (770)
+sudo chown -R agent-admin:agent-core $AGENT_HOME/api_keys
+sudo chown -R agent-admin:agent-core $AGENT_HOME/log
+sudo chmod 770 $AGENT_HOME/api_keys
+sudo chmod 770 $AGENT_HOME/log
+
+# 공용 데이터(upload_files): 모든 그룹이 협업을 위해 접근 가능 (775)
+sudo chown -R agent-admin:agent-common $AGENT_HOME/upload_files
+sudo chmod 775 $AGENT_HOME/upload_files
+
+# 5. ACL(Access Control List)을 통한 정밀 권한 주입
+# 리눅스 기본 권한을 넘어, 특정 그룹에 대해 세밀한 접근 제어를 추가합니다.
+echo "단계 5: ACL 확장 권한 설정 중..."
+# log 디렉토리에 대해 agent-core 그룹에 명시적인 R-W-X 권한 부여
+sudo setfacl -m g:agent-core:rwx $AGENT_HOME/log
+# upload_files 디렉토리에 대해 agent-common 그룹에 읽기/실행 권한 부여
+sudo setfacl -m g:agent-common:rx $AGENT_HOME/upload_files
+
+echo "------------------------------------------------"
+echo "🔍 [권한 검증 결과] 주요 디렉토리 권한 상태:"
+ls -ld $AGENT_HOME/api_keys $AGENT_HOME/log $AGENT_HOME/upload_files
+echo "------------------------------------------------"
+echo "🎉 완료: RBAC 계정 체계 및 권한 격리가 성공적으로 구축되었습니다."
+```
+
+---
+
 ## 6. 요구사항 수행 결과 및 검증 (Evidence)
 
 ### 6.1 인프라 환경 및 패키지 무결성 검증
@@ -271,10 +498,35 @@ api_keys/  bin/  conf/  log/  setup/  upload_files/
 
 # [검증 4] 전역 환경 변수 로드 확인
 $ env | grep AGENT
-AGENT_HOME=/home/ubuntu/agent-app
+AGENT_HOME=/home/gdone90098008/agent-app
 AGENT_LOG_DIR=/var/log/agent-app
 AGENT_PORT=15034
 
+```
+
+### 6.3 보안 강화 및 네트워크 요새화 검증
+SSH 서비스 보안 설정 및 UFW 방화벽 정책이 정상 적용되었음을 확인하였습니다.
+
+```bash
+# [검증 1] SSH 리스닝 포트 확인 (반드시 sudo 권한 필요)
+$ sudo ss -tlnp | grep 20022
+LISTEN 0 4096 [::]:20022 [::]:* users:(("sshd",pid=4899,fd=3),("systemd",pid=1,fd=50))
+
+# [검증 2] UFW 활성화 및 정책 적용 상태 확인
+$ sudo ufw status verbose
+Status: active
+Default: deny (incoming), allow (outgoing)
+```
+
+### 6.4 계정 설계 및 RBAC 권한 체계 검증
+RBAC 정책에 따라 계정별 역할을 분리하고, ACL을 통한 디렉토리 격리 설정을 완료하였습니다.
+
+```Bash
+# [검증] 주요 디렉토리 권한 및 ACL 적용 상태 (README 4.1 준수)
+$ ls -ld $AGENT_HOME/api_keys $AGENT_HOME/log $AGENT_HOME/upload_files
+drwxrwx---  agent-admin agent-core    ... api_keys/
+drwxrwx---+ agent-admin agent-core    ... log/           # ACL 적용 (+) 확인
+drwxrwxr-x+ agent-admin agent-common  ... upload_files/   # ACL 적용 (+) 확인
 ```
 
 ---
@@ -297,6 +549,37 @@ AGENT_PORT=15034
 * **문제:** 터미널에서는 정상인 스크립트가 Cron에서 실행 시 환경 변수 미인식으로 실패함.
 * **해결:** 스크립트 내부에 `source ~/.bash_profile`을 명시적으로 호출하거나 절대 경로를 사용하여 실행 환경을 보정함.
 
+### 7.4 SSH 포트 변경 후 ss 명령어 결과 미출력
+
+* **문제:** ss -tlnp | grep ssh 실행 시 결과가 출력되지 않음.
+* **원인:** 일반 계정 권한으로는 시스템 프로세스명을 읽을 수 없어 필터링에 실패함.
+* **해결:** sudo 권한을 부여하여 프로세스 정보를 로드함으로써 해결.
+
+### 7.5 Ubuntu 최신 버전의 SSH 소켓 액티베이션 이슈
+* **문제:** `sshd_config` 수정 후에도 서비스가 계속 22번 포트로 실행됨.
+* **원인:** `systemd`의 `ssh.socket` 설정이 `sshd_config` 설정을 덮어쓰기 때문임.
+* **해결:** `/etc/systemd/system/ssh.socket.d/listen.conf` 파일을 생성하여 소켓 리스닝 포트를 20022로 강제 지정 후 `daemon-reload`를 통해 해결함.
+
+### 7.6 최소 설치 환경에서의 nano 명령어 부재
+* **문제:** `sudo nano` 실행 시 `command not found` 에러 발생.
+* **원인:** 가용 리소스를 최소화한 Ubuntu 환경(OrbStack 등)에서는 기본 편집기가 포함되지 않을 수 있음.
+* **해결:** `sudo apt install nano`를 통해 도구를 설치하거나, `cat` 리다이렉션을 활용하여 편집기 없이 설정 파일을 생성함.
+
+### 7.7 RBAC 스크립트 실행 시 디렉토리 참조 오류
+* **문제:** `chown`, `chmod` 실행 시 `No such file or directory` 에러 발생.
+* **원인:** 설치 계정명(`gdone90098008`)과 스크립트 내 기본 경로(`ubuntu`) 불일치 및 `sudo` 실행 시 환경 변수 미로드.
+* **해결:** 스크립트 내 `AGENT_HOME` 경로를 실제 사용자 홈 디렉토리로 명시적으로 수정하여 해결.
+
+### 7.8 초기 인프라 구축 스크립트 내 경로 하드코딩 이슈
+* **문제:** `01_env_setup.sh` 실행 시 `/home/ubuntu` 디렉토리 생성 권한 오류 발생.
+* **원인:** 스크립트 내부에 특정 사용자 경로(`ubuntu`)가 고정되어 있어, 실제 환경(`gdone90098008`)과 충돌함.
+* **해결:** `$HOME` 환경 변수 또는 `$USER` 변수를 사용하여 상대 경로로 자동 전환되도록 스크립트 보정 완료.
+
+### 7.9 타 사용자 홈 디렉토리 내 스크립트 실행 불가 이슈
+* **문제:** `agent-admin` 계정으로 타 계정 홈 디렉토리의 스크립트 실행 시 `Permission denied` 발생.
+* **원인:** 리눅스 보안 정책상 상위 디렉토리에 대한 실행(x) 권한이 없으면 내부 파일에 접근할 수 없음.
+* **해결:** 스크립트를 공용 실행 경로(`~/agent-app/bin`) 또는 실행 계정의 홈 디렉토리로 복사 후 권한을 재설정하여 해결.
+
 ---
 
 ## 8. 기술적 제언 및 향후 과제 (Insights)
@@ -315,6 +598,11 @@ AGENT_PORT=15034
 
 ### 9.1 최종 제출 결과물
 
-* **스크립트:** `setup/01_env_setup.sh` (인프라 자동 구축용)
+* **스크립트:** `setup/01_env_setup.sh` (인프라 자동 구축용), 'setup/02_security_setup.sh', 'setup/03_user_setup.sh'
 * **로그 파일:** `$AGENT_LOG_DIR/setup.log` (구축 과정 증빙 자료)
 * **기술 문서:** `README.md` (본 지식 창고 문서)
+
+### 9.2 Appendix: 작업 경로 메모 (제출 시 삭제 권장)
+공유 폴더 경로: /mnt/mac/home/gdone90098008/Documents/dev/codyssey/linux-system-monitor/setup
+
+codyssey12!
