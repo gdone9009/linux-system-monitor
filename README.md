@@ -580,17 +580,20 @@ drwxrwxr-x+ agent-admin agent-common  ... upload_files/   # ACL 적용 (+) 확�
 * **원인:** 리눅스 보안 정책상 상위 디렉토리에 대한 실행(x) 권한이 없으면 내부 파일에 접근할 수 없음.
 * **해결:** 스크립트를 공용 실행 경로(`~/agent-app/bin`) 또는 실행 계정의 홈 디렉토리로 복사 후 권한을 재설정하여 해결.
 
+### 7.10 교차 플랫폼(macOS/Linux) 환경 실행 및 호환성 이슈
+* **문제:** macOS 및 미니멀 Linux 배포판에서 스크립트 실행 시 `stat` 명령어의 인자 오류(`-c` 옵션 미지원) 및 `ss` 명령어 누락으로 포트 체크 실패 발생.
+* **원인:** BSD 계열(macOS)과 GNU 계열(Linux)의 `stat` 명령 포맷이 다르고, 최신 미니멀 배포판의 경우 `iproute2` 패키지가 누락되어 `ss`가 없을 수 있음.
+* **해결:** 스크립트 내부에서 `stat -c%s`와 `stat -f%z`를 조건문으로 분기 실행하도록 구현하고, `ss` 명령어가 없을 시 `netstat`을 Fallback으로 사용하도록 예외 처리하여 이식성을 확보함.
+
 ---
 
 ## 8. 기술적 제언 및 향후 과제 (Insights)
 
-### 8.1 로그 순환(Rotation) 정책 고도화
-
-현재는 `>>`를 통해 누적하고 있으나, 장기 운영 시 디스크 풀(Full) 장애를 방지하기 위해 `logrotate` 도구를 연동한 크기 기반 순환 정책 도입을 제언함.
+### 8.1 로그 순환(Rotation) 정책 내재화 완료
+* **완료 사안:** 기존에는 외부 `logrotate` 도구에 의존하는 방향을 검토하였으나, 스크립트 런타임에 직접 파일 크기(10MB) 및 백업 순환(최대 10개 파일) 로직을 내재화하여 단일 스크립트 배포만으로도 디스크 오버헤드를 완벽히 방어할 수 있도록 고도화함.
 
 ### 8.2 알림 시스템 연동
-
-리소스 임계치 초과(`WARNING`) 시 로그 기록에 그치지 않고, Webhook을 활용하여 슬랙(Slack)이나 이메일로 즉시 알림을 발송하는 파이프라인 확장이 필요함.
+* **향후 과제:** 리소스 임계치 초과(`WARNING`) 시 로그 기록에 그치지 않고, Webhook을 활용하여 슬랙(Slack)이나 이메일로 즉시 알림을 발송하는 파이프라인 확장이 필요함.
 
 ---
 
@@ -598,11 +601,10 @@ drwxrwxr-x+ agent-admin agent-common  ... upload_files/   # ACL 적용 (+) 확�
 
 ### 9.1 최종 제출 결과물
 
-* **스크립트:** `setup/01_env_setup.sh` (인프라 자동 구축용), 'setup/02_security_setup.sh', 'setup/03_user_setup.sh'
-* **로그 파일:** `$AGENT_LOG_DIR/setup.log` (구축 과정 증빙 자료)
-* **기술 문서:** `README.md` (본 지식 창고 문서)
+* **핵심 관제 엔진:** `bin/monitor.sh` (리소스 수집, 헬스체크 및 자체 로그 로테이션 지원)
+* **인프라 셋업 스크립트:** `setup/01_env_setup.sh`, `setup/02_security_setup.sh`, `setup/03_user_setup.sh`
+* **로그 파일:** `$AGENT_LOG_DIR/monitor.log` (관제 로그), `$AGENT_LOG_DIR/setup.log` (인프라 설정 증빙)
+* **기술 문서:** `README.md` (본 기술 명세 및 트러블슈팅 가이드)
 
-### 9.2 Appendix: 작업 경로 메모 (제출 시 삭제 권장)
-공유 폴더 경로: /mnt/mac/home/gdone90098008/Documents/dev/codyssey/linux-system-monitor/setup
-
-codyssey12!
+### 9.2 Appendix: 보안 주의 사항
+* **계정 정보:** 모든 가상 사용자(`agent-admin`, `agent-dev`, `agent-test`)의 비밀번호는 기본 실습 규격에 명시된 값을 따르며, 보안 유지를 위해 본 README 명세 파일 내 평문 노출은 제거 조치함.
