@@ -1,35 +1,167 @@
 #!/bin/bash
-# =================================================================
-# Script Name: monitor.sh
-# Description: 시스템 리소스 메트릭 수집 및 서비스 헬스체크 엔진
-# =================================================================
+# ==============================================================================
+# 시스템 관제 자동화 스크립트 (monitor.sh)
+# 코디세이 미션 4: 시스템 관제 자동화 스크립트 개발 (개선 및 완성 버전)
+# ==============================================================================
 
-# 1. 환경 변수 우선 로드 (기존에 설정된 변수가 있다면 가져옴)
+# 1. 환경 변수 로드 (Cron 백그라운드 실행 시 환경 변수 누락 방지)
 source ~/.bash_profile 2>/dev/null
 
-# 2. [핵심] 현재 계정에 맞게 경로 강제 재설정 (덮어쓰기 방지)
+# 2. 호스트 운영체제에 맞춤 경로 계산 및 환경 변수 기본값 설정
 CURRENT_USER=$(whoami)
-AGENT_HOME="/home/$CURRENT_USER/agent-app"
-LOG_FILE="$AGENT_HOME/log/monitor.log"
+# macOS의 경우 /home 대신 /Users 이므로 $HOME 변수 우선 사용
+AGENT_HOME="${AGENT_HOME:-$HOME/agent-app}"
+AGENT_LOG_DIR="${AGENT_LOG_DIR:-$AGENT_HOME/log}"
+AGENT_PORT="${AGENT_PORT:-15034}"
+APP_NAME="agent_app.py" 
+LOG_FILE="$AGENT_LOG_DIR/monitor.log"
 
-# 3. 로그 디렉토리 생성 보장
-mkdir -p "$AGENT_HOME/log"
+# 로그 디렉토리 생성 보장
+mkdir -p "$AGENT_LOG_DIR"
 
-# --- 이하 리소스 측정 로직 동일 ---
-CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
-MEM_USAGE=$(free | grep Mem | awk '{print $3/$2 * 100.0}')
-DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+echo "====== SYSTEM MONITOR START ======"
 
-TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
-STATUS="INFO"
+# ------------------------------------------------------------------------------
+# [3] HEALTH CHECK (프로세스 및 포트 검증 - 실패 시 즉시 종료)
+# ------------------------------------------------------------------------------
+echo "[HEALTH CHECK]"
 
-# bc를 이용한 소수점 비교
-if (( $(echo "$CPU_USAGE > 20" | bc -l) )) || (( $(echo "$MEM_USAGE > 10" | bc -l) )) || [ "$DISK_USAGE" -gt 80 ]; then
-    STATUS="WARNING"
+# 3.1 프로세스 구동 확인
+PID=$(pgrep -f "$APP_NAME" | head -n 1)
+if [ -z "$PID" ]; then
+    echo "Checking process '$APP_NAME'... [FAILED]"
+    # 백그라운드에서 실행되지 않은 상태에서의 오류 로그 기록
+    TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+    echo "[$TIMESTAMP] [ERROR] Process '$APP_NAME' is NOT running!" >> "$LOG_FILE"
+    exit 1
+else
+    echo "Checking process '$APP_NAME'... [OK] (PID: $PID)"
 fi
 
-PORT_CHECK=$(ss -tln | grep -w "15034" | wc -l)
-APP_STATUS=$([ "$PORT_CHECK" -eq 0 ] && echo "DOWN" || echo "UP")
+# 3.2 포트 리슨 상태 확인 (TCP 15034)
+# macOS와 Linux의 ss / netstat 호환성 확보를 위해 ss가 없으면 netstat 사용
+if command -v ss &>/dev/null; then
+    PORT_CHECK=$(ss -tuln | grep -q ":$AGENT_PORT " && echo "OK" || echo "FAILED")
+else
+    PORT_CHECK=$(netstat -an | grep -q "\.$AGENT_PORT " && echo "OK" || echo "FAILED")
+fi
 
-# 로그 기록 (정확한 LOG_FILE 경로 사용)
-echo "[$TIMESTAMP] [$STATUS] CPU: ${CPU_USAGE}%, MEM: ${MEM_USAGE}%, DISK: ${DISK_USAGE}%, APP: $APP_STATUS" >> "$LOG_FILE"
+if [ "$PORT_CHECK" = "FAILED" ]; then
+    echo "Checking port $AGENT_PORT... [FAILED]"
+    TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+    echo "[$TIMESTAMP] [ERROR] Port $AGENT_PORT is NOT listening!" >> "$LOG_FILE"
+    exit 1
+else
+    echo "Checking port $AGENT_PORT... [OK]"
+fi
+
+# 3.3 방화벽(UFW) 활성화 상태 점검 (경고만 출력하고 스크립트는 중단하지 않음)
+if command -v ufw &>/dev/null; then
+    FW_STATUS=$(sudo ufw status 2>/dev/null | grep -i "Status: active")
+    if [ -z "$FW_STATUS" ]; then
+        echo "[WARNING] UFW Firewall is NOT active!"
+    else
+        echo "Checking Firewall... [OK]"
+    fi
+else
+    echo "Checking Firewall... [SKIPPED] (ufw not installed)"
+fi
+
+# ------------------------------------------------------------------------------
+# [4] RESOURCE MONITORING & LOGGING
+# ------------------------------------------------------------------------------
+echo ""
+echo "[RESOURCE MONITORING]"
+
+# 리소스 사용량 수집 (ps 및 df 명령어 활용)
+# macOS와 Linux의 ps 옵션 차이를 감안하여 안전하게 파싱
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS ps
+    CPU_USAGE=$(ps -p $PID -o %cpu= | tr -d ' ' | awk '{print $1}')
+    MEM_USAGE=$(ps -p $PID -o %mem= | tr -d ' ' | awk '{print $1}')
+else
+    # Linux ps
+    CPU_USAGE=$(ps -p $PID -o %cpu= | tr -d ' ')
+    MEM_USAGE=$(ps -p $PID -o %mem= | tr -d ' ')
+fi
+
+# 디스크 사용량 수집 (df 활용)
+DISK_USED=$(df -h / | tail -1 | awk '{print $5}' | tr -d '%')
+
+# float 값 빈 값 예외 처리
+CPU_USAGE="${CPU_USAGE:-0.0}"
+MEM_USAGE="${MEM_USAGE:-0.0}"
+DISK_USED="${DISK_USED:-0}"
+
+echo "Process CPU Usage: ${CPU_USAGE}%"
+echo "Process MEM Usage: ${MEM_USAGE}%"
+echo "System DISK Used: ${DISK_USED}%"
+
+# float 숫자 비교를 위한 awk 헬퍼 함수
+check_threshold() {
+    awk -v val="$1" -v limit="$2" 'BEGIN { if (val > limit) exit 0; else exit 1; }'
+}
+
+STATUS="INFO"
+WARNING_MSG=""
+
+# 임계치 초과 경고 판정 (CPU > 20%, MEM > 10%, DISK > 80%)
+if check_threshold "$CPU_USAGE" "20.0"; then
+    STATUS="WARNING"
+    WARNING_MSG="[CPU threshold exceeded (${CPU_USAGE}% > 20%)]"
+    echo "$WARNING_MSG"
+fi
+
+if check_threshold "$MEM_USAGE" "10.0"; then
+    STATUS="WARNING"
+    WARNING_MSG="${WARNING_MSG} [MEM threshold exceeded (${MEM_USAGE}% > 10%)]"
+    echo "[WARNING] MEM threshold exceeded (${MEM_USAGE}% > 10%)"
+fi
+
+if [ "$DISK_USED" -gt 80 ]; then
+    STATUS="WARNING"
+    WARNING_MSG="${WARNING_MSG} [DISK threshold exceeded (${DISK_USED}% > 80%)]"
+    echo "[WARNING] DISK threshold exceeded (${DISK_USED}% > 80%)"
+fi
+
+# ------------------------------------------------------------------------------
+# [5] LOG ROTATION (최대 10MB, 10개 파일 유지)
+# ------------------------------------------------------------------------------
+if [ -f "$LOG_FILE" ]; then
+    # OS별 stat 명령어 옵션 호환 처리
+    if stat -c%s "$LOG_FILE" >/dev/null 2>&1; then
+        FILE_SIZE=$(stat -c%s "$LOG_FILE")
+    else
+        FILE_SIZE=$(stat -f%z "$LOG_FILE")
+    fi
+
+    # 10MB = 10,485,760 bytes
+    if [ "$FILE_SIZE" -ge 10485760 ]; then
+        echo "[LOG ROTATION] Log file size ($FILE_SIZE bytes) exceeds 10MB. Rotating logs..."
+        # 9번부터 1번까지 밀어내기 (monitor.log.9 -> monitor.log.10)
+        for i in {9..1}; do
+            if [ -f "$LOG_FILE.$i" ]; then
+                mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
+            fi
+        done
+        mv "$LOG_FILE" "$LOG_FILE.1"
+        touch "$LOG_FILE"
+    fi
+fi
+
+# ------------------------------------------------------------------------------
+# [6] SAVE LOG
+# ------------------------------------------------------------------------------
+TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+LOG_LINE="[$TIMESTAMP] [$STATUS] PID:$PID CPU:${CPU_USAGE}% MEM:${MEM_USAGE}% DISK_USED:${DISK_USED}%"
+
+if [ -n "$WARNING_MSG" ]; then
+    LOG_LINE="$LOG_LINE Details: $WARNING_MSG"
+fi
+
+echo "$LOG_LINE" >> "$LOG_FILE"
+echo "[INFO] Log appended: $LOG_FILE"
+echo "====== SYSTEM MONITOR END ======"
+
+# 정상 종료
+exit 0
