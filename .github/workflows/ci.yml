@@ -1,0 +1,30 @@
+name: Linux System Monitor CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Bash Syntax Check (bash -n)
+      run: |
+        echo "Checking syntax of all shell scripts..."
+        for script in bin/*.sh setup/*.sh tests/*.sh; do
+          if [ -f "$script" ]; then
+            bash -n "$script" || exit 1
+          fi
+        done
+        echo "✅ All Bash scripts passed syntax verification!"
+
+    - name: Execute Integrated Test Suite
+      run: |
+        chmod +x tests/run_tests.sh bin/*.sh setup/*.sh
+        ./tests/run_tests.sh
