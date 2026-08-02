@@ -22,7 +22,7 @@ fi
 echo "====== STATISTICS REPORT ======"
 
 # 3. Awk 스크립트를 활용하여 monitor.log의 통계 데이터를 한 번의 패스로 정밀 계산
-# 파싱 대상 형식: [YYYY-MM-DD HH:MM:SS] ... PID:1234 CPU:10.2% MEM:3.2% DISK_USED:23%
+# 파싱 대상 형식: [2026-08-02 20:01:14] [INFO] PID:10312 CPU:0.0% MEM:0.0% DISK_USED:3%
 awk '
 BEGIN {
     count = 0;
@@ -32,27 +32,43 @@ BEGIN {
     mem_max_time = ""; mem_min_time = "";
 }
 {
-    # 3.1 라인 내에서 타임스탬프, CPU, MEM 수치 추출
-    # 타임스탬프 예시: [2026-02-25 14:00:05]
-    if (match($0, /\[([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})\]/, time_arr) &&
-        match($0, /CPU:([0-9.]+)%/, cpu_arr) &&
-        match($0, /MEM:([0-9.]+)%/, mem_arr)) {
+    # POSIX 호환 필드 및 정규식 추출
+    if ($0 ~ /CPU:[0-9.]/ && $0 ~ /MEM:[0-9.]/) {
+        # 타임스탬프 추출
+        ts_start = index($0, "[");
+        ts_end = index($0, "]");
+        if (ts_start > 0 && ts_end > ts_start) {
+            timestamp = substr($0, ts_start + 1, ts_end - ts_start - 1);
+        } else {
+            timestamp = "N/A";
+        }
 
-        timestamp = time_arr[1];
-        cpu = cpu_arr[1] + 0;
-        mem = mem_arr[1] + 0;
+        # CPU 값 추출
+        cpu_val = 0;
+        for (i = 1; i <= NF; i++) {
+            if ($i ~ /^CPU:/) {
+                sub(/^CPU:/, "", $i);
+                sub(/%$/, "", $i);
+                cpu_val = $i + 0;
+            }
+            if ($i ~ /^MEM:/) {
+                sub(/^MEM:/, "", $i);
+                sub(/%$/, "", $i);
+                mem_val = $i + 0;
+            }
+        }
 
         count++;
-        cpu_sum += cpu;
-        mem_sum += mem;
+        cpu_sum += cpu_val;
+        mem_sum += mem_val;
 
         # CPU 최대/최소값 및 시간 기록
-        if (cpu > cpu_max) { cpu_max = cpu; cpu_max_time = timestamp; }
-        if (cpu < cpu_min) { cpu_min = cpu; cpu_min_time = timestamp; }
+        if (cpu_val > cpu_max) { cpu_max = cpu_val; cpu_max_time = timestamp; }
+        if (cpu_val < cpu_min) { cpu_min = cpu_val; cpu_min_time = timestamp; }
 
         # Memory 최대/최소값 및 시간 기록
-        if (mem > mem_max) { mem_max = mem; mem_max_time = timestamp; }
-        if (mem < mem_min) { mem_min = mem; mem_min_time = timestamp; }
+        if (mem_val > mem_max) { mem_max = mem_val; mem_max_time = timestamp; }
+        if (mem_val < mem_min) { mem_min = mem_val; mem_min_time = timestamp; }
     }
 }
 END {

@@ -8,16 +8,16 @@
 
 # 1. 경로 및 설정값 정의
 source ~/.bash_profile 2>/dev/null
-LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
+LOG_DIR="${AGENT_LOG_DIR:-$HOME/agent-app/log}"
 ARCHIVE_DIR="/var/log/monitor/agent-app/archive"
 
 echo "📦 [LOG ARCHIVE] 시간 기반 로그 아카이브 및 삭제 정책 프로세스를 시작합니다..."
 
-# 2. 아카이브 디렉토리 생성 보장
+# 2. 아카이브 디렉토리 생성 보장 (권한 부족 시 유저 로그 경로로 Fallback)
 if ! mkdir -p "$ARCHIVE_DIR" 2>/dev/null; then
-    echo "⚠️ [WARNING] 아카이브 디렉토리를 생성할 권한이 없습니다 ($ARCHIVE_DIR)."
-    echo "sudo 권한으로 실행하거나 소유권을 확인하세요."
-    exit 0
+    ARCHIVE_DIR="$LOG_DIR/archive"
+    mkdir -p "$ARCHIVE_DIR" 2>/dev/null
+    echo "ℹ️ [INFO] 유저 아카이브 경로로 자동 전환되었습니다 ($ARCHIVE_DIR)."
 fi
 
 # 3. 7일 경과 로그 파일 압축 및 아카이브 이동
