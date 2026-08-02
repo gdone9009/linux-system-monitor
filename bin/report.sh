@@ -1,18 +1,23 @@
 #!/bin/bash
 # ==============================================================================
-# 스크립트 명: report.sh (보너스 과제 1 - 관제 로그 통계 요약 리포트)
-# 작성 목적   : monitor.log 파일을 수집 및 분석하여 CPU, Memory, Disk의 
-#               평균(Average), 최대(Maximum), 최소(Minimum) 수치 및 
-#               총 샘플(Data Points) 수를 계산하여 보고서를 콘솔에 출력합니다.
-# 제약 사항   : 순수 Bash 및 Awk 유틸리티만 사용하여 외부 라이브러리 없이 구현.
+# 📖 [초보자를 위한 교재용 해설] 관제 로그 통계 리포터 스크립트 (report.sh)
+# ------------------------------------------------------------------------------
+# 본 스크립트는 monitor.sh가 매분 쌓아둔 monitor.log 파일의 전체 텍스트를 읽어서,
+# CPU 사용률, 메모리 사용률의 평균값(Average), 최대값(Maximum), 최소값(Minimum) 및
+# 발생 시각과 총 수집 샘플(Data Points) 개수를 자동으로 분석/계산해 주는 리포트 도구입니다.
 # ==============================================================================
 
-# 1. 로그 파일 경로 설정 (기본값: /var/log/agent-app/monitor.log)
+# ------------------------------------------------------------------------------
+# 1. 로그 파일 경로 설정 및 예외 처리
+# ------------------------------------------------------------------------------
+# [개념 설명] '$1'은 스크립트를 실행할 때 사용자가 전달하는 첫 번째 인자(Argument)입니다.
+# 예: ./report.sh /path/to/custom.log
+# 인자를 전달하지 않았다면 기본값으로 '$AGENT_LOG_DIR/monitor.log'를 사용합니다.
 source ~/.bash_profile 2>/dev/null
 AGENT_LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
 LOG_FILE="${1:-$AGENT_LOG_DIR/monitor.log}"
 
-# 2. 로그 파일 존재 여부 확인 (예외 처리)
+# [예외 처리] 분석할 로그 파일이 존재하지 않는 경우 에러 메시지를 출력하고 종료합니다.
 if [ ! -f "$LOG_FILE" ]; then
     echo "⚠️ [ERROR] 로그 파일을 찾을 수 없습니다: $LOG_FILE"
     echo "관제 스크립트(monitor.sh)가 최소 1회 이상 실행되어 로그가 수집되어야 합니다."
@@ -21,8 +26,13 @@ fi
 
 echo "====== STATISTICS REPORT ======"
 
-# 3. Awk 스크립트를 활용하여 monitor.log의 통계 데이터를 한 번의 패스로 정밀 계산
-# 파싱 대상 형식: [2026-08-02 20:01:14] [INFO] PID:10312 CPU:0.0% MEM:0.0% DISK_USED:3%
+# ------------------------------------------------------------------------------
+# 2. Awk 유틸리티를 활용한 고성능 텍스트 분석 및 통계 계산 Engine
+# ------------------------------------------------------------------------------
+# [개념 설명] Awk는 대용량 텍스트 및 로그 파일을 파싱하는 데 특화된 텍스트 처리 언어입니다.
+# - BEGIN { ... }: 파일 파싱이 시작되기 직전 변수(합계, 최댓값, 최솟값)를 초기화하는 블록
+# - { ... }: 로그 파일의 매 라인(Line)을 읽을 때마다 반복 실행되는 블록
+# - END { ... }: 파일 전체를 다 읽은 후 최종 통계 결과를 계산하고 출력하는 블록
 awk '
 BEGIN {
     count = 0;
@@ -32,9 +42,10 @@ BEGIN {
     mem_max_time = ""; mem_min_time = "";
 }
 {
-    # POSIX 호환 필드 및 정규식 추출
+    # 2.1 라인 검증: CPU 및 MEM 수치가 포함된 로그 라인만 골라냅니다.
     if ($0 ~ /CPU:[0-9.]/ && $0 ~ /MEM:[0-9.]/) {
-        # 타임스탬프 추출
+
+        # 2.2 타임스탬프 추출: 대괄호([ ]) 사이의 시각 정보(예: 2026-08-02 20:01:14)를 자릅니다.
         ts_start = index($0, "[");
         ts_end = index($0, "]");
         if (ts_start > 0 && ts_end > ts_start) {
@@ -43,45 +54,48 @@ BEGIN {
             timestamp = "N/A";
         }
 
-        # CPU 값 추출
+        # 2.3 라인 내부의 단어(필드)를 순회하며 CPU: 수치와 MEM: 수치를 숫자로 변환합니다.
         cpu_val = 0;
+        mem_val = 0;
         for (i = 1; i <= NF; i++) {
             if ($i ~ /^CPU:/) {
                 sub(/^CPU:/, "", $i);
                 sub(/%$/, "", $i);
-                cpu_val = $i + 0;
+                cpu_val = $i + 0; # 문자열을 숫자로 변환
             }
             if ($i ~ /^MEM:/) {
                 sub(/^MEM:/, "", $i);
                 sub(/%$/, "", $i);
-                mem_val = $i + 0;
+                mem_val = $i + 0; # 문자열을 숫자로 변환
             }
         }
 
+        # 2.4 누적 카운트 및 합계 추가
         count++;
         cpu_sum += cpu_val;
         mem_sum += mem_val;
 
-        # CPU 최대/최소값 및 시간 기록
+        # 2.5 CPU 최댓값 / 최솟값 업데이트 알고리즘
         if (cpu_val > cpu_max) { cpu_max = cpu_val; cpu_max_time = timestamp; }
         if (cpu_val < cpu_min) { cpu_min = cpu_val; cpu_min_time = timestamp; }
 
-        # Memory 최대/최소값 및 시간 기록
+        # 2.6 Memory 최댓값 / 최솟값 업데이트 알고리즘
         if (mem_val > mem_max) { mem_max = mem_val; mem_max_time = timestamp; }
         if (mem_val < mem_min) { mem_min = mem_val; mem_min_time = timestamp; }
     }
 }
 END {
+    # 2.7 분석 데이터가 없을 경우 처리
     if (count == 0) {
         print "⚠️ 분석할 수 있는 로그 데이터가 없습니다.";
         exit 0;
     }
 
-    # 3.2 평균값 계산 (소수점 첫째 자리까지 출력)
+    # 2.8 평균 수치 계산
     cpu_avg = cpu_sum / count;
     mem_avg = mem_sum / count;
 
-    # 3.3 요구사항 PDF 양식에 부합하는 통계 결과 출력
+    # 2.9 미션 PDF 규격 양식에 맞춘 콘솔 출력 (printf: 소수점 1자리 지정 %.1f)
     print "[CPU]";
     printf "Average : %.1f%%\n", cpu_avg;
     printf "Maximum : %.1f%% at %s\n", cpu_max, cpu_max_time;
