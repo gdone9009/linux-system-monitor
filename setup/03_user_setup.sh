@@ -5,18 +5,11 @@
 # Author: Jeong Chang-seok
 # =================================================================
 
-# 직접 경로를 입력 (가장 확실한 방법)
-AGENT_HOME="/home/gdone90098008/agent-app"
+# [사전 준비] 환경 변수 로드 확인 및 동적 경로 설정
+source ~/.bash_profile 2>/dev/null
+AGENT_HOME="${AGENT_HOME:-$HOME/agent-app}"
 
 echo "👤 알림: 계정 설계 및 RBAC 권한 체계 구축을 시작합니다..."
-
-# [사전 준비] 환경 변수 로드 확인 (README 2.3 및 7.3 준수)
-# sudo 실행 시 환경 변수가 누락되는 것을 방지하기 위해 프로파일을 강제로 로드합니다.
-if [ -z "$AGENT_HOME" ]; then
-    source ~/.bash_profile 2>/dev/null
-    # 여전히 비어있다면 기본 경로 할당
-    AGENT_HOME=${AGENT_HOME:-"/home/ubuntu/agent-app"}
-fi
 
 # 1. 시스템 그룹 생성
 # -f 옵션을 사용하여 그룹이 이미 존재해도 에러를 발생시키지 않습니다. (멱등성 확보)

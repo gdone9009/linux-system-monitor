@@ -7,9 +7,9 @@
 # Date: 2026-05-15
 # =================================================================
 
-# 1. 환경 변수 정의 (README 5.1.2 및 5.2.2 기준)
-export AGENT_HOME="/home/gdone90098008/agent-app"
-export AGENT_LOG_DIR="/var/log/agent-app"
+# 1. 환경 변수 정의 (README 5.1.2 및 5.2.2 기준 - 동적 경로 적용)
+export AGENT_HOME="${AGENT_HOME:-$HOME/agent-app}"
+export AGENT_LOG_DIR="${AGENT_LOG_DIR:-$AGENT_HOME/log}"
 
 echo "알림: 인프라 구축 프로세스를 시작합니다..."
 

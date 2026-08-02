@@ -85,8 +85,8 @@ else
     MEM_USAGE=$(ps -p $PID -o %mem= | tr -d ' ')
 fi
 
-# 디스크 사용량 수집 (df 활용)
-DISK_USED=$(df -h / | tail -1 | awk '{print $5}' | tr -d '%')
+# 디스크 사용량 수집 (df -P POSIX 포맷 활용으로 안전성 보장)
+DISK_USED=$(df -P / | awk 'NR==2 {print $5}' | tr -d '%')
 
 # float 값 빈 값 예외 처리
 CPU_USAGE="${CPU_USAGE:-0.0}"
@@ -125,7 +125,7 @@ if [ "$DISK_USED" -gt 80 ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# [5] LOG ROTATION (최대 10MB, 10개 파일 유지)
+# [5] LOG ROTATION (최대 10MB, 10개 파일 유지 및 10개 초과 자동 삭제 cleanup)
 # ------------------------------------------------------------------------------
 if [ -f "$LOG_FILE" ]; then
     # OS별 stat 명령어 옵션 호환 처리
@@ -138,6 +138,8 @@ if [ -f "$LOG_FILE" ]; then
     # 10MB = 10,485,760 bytes
     if [ "$FILE_SIZE" -ge 10485760 ]; then
         echo "[LOG ROTATION] Log file size ($FILE_SIZE bytes) exceeds 10MB. Rotating logs..."
+        # 10개 초과 파일 cleanup 삭제
+        rm -f "$LOG_FILE.11"
         # 9번부터 1번까지 밀어내기 (monitor.log.9 -> monitor.log.10)
         for i in {9..1}; do
             if [ -f "$LOG_FILE.$i" ]; then
@@ -150,13 +152,16 @@ if [ -f "$LOG_FILE" ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# [6] SAVE LOG
+# [6] SAVE LOG & ALERT EVENT
 # ------------------------------------------------------------------------------
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 LOG_LINE="[$TIMESTAMP] [$STATUS] PID:$PID CPU:${CPU_USAGE}% MEM:${MEM_USAGE}% DISK_USED:${DISK_USED}%"
 
 if [ -n "$WARNING_MSG" ]; then
     LOG_LINE="$LOG_LINE Details: $WARNING_MSG"
+    # WARNING 발생 시 이벤트 JSON 로그 추가 (옵션 확장)
+    ALERT_JSON="$AGENT_LOG_DIR/alert_events.json"
+    echo "{\"timestamp\":\"$TIMESTAMP\",\"status\":\"WARNING\",\"pid\":$PID,\"cpu\":\"$CPU_USAGE\",\"mem\":\"$MEM_USAGE\",\"disk\":$DISK_USED,\"details\":\"$WARNING_MSG\"}" >> "$ALERT_JSON"
 fi
 
 echo "$LOG_LINE" >> "$LOG_FILE"

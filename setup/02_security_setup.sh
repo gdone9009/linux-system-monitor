@@ -7,10 +7,12 @@
 
 echo "🛡️ 알림: 시스템 보안 요새화 및 SSH 소켓 오버라이드를 시작합니다..."
 
-# 1. SSH 설정 파일 백업 및 수정
+# 1. SSH 설정 파일 백업 및 크로스 플랫폼 수정
 sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
-sudo sed -i 's/^#*Port 22/Port 20022/' /etc/ssh/sshd_config
-sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+SED_I_OPT=(-i)
+[[ "$OSTYPE" == "darwin"* ]] && SED_I_OPT=(-i '')
+sudo sed "${SED_I_OPT[@]}" 's/^#*Port 22/Port 20022/' /etc/ssh/sshd_config
+sudo sed "${SED_I_OPT[@]}" 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 echo "✅ 단계 1: sshd_config 포트(20022) 및 Root 접속 차단 설정 완료."
 
 # 2. Systemd SSH 소켓 오버라이드 (핵심 이슈 해결)
