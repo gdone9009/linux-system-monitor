@@ -29,35 +29,51 @@ for user in "${users[@]}"; do
     fi
 done
 
-# 3. 그룹 바인딩 (계정별 역할 부여)
-# admin과 dev는 핵심 자산에 접근하는 core 그룹에, test는 공용 그룹에 배치합니다.
+# 3. 그룹 바인딩 (계정별 역할 부여 - PDF 요구사항 준수)
+# - agent-common 그룹: admin, dev, test 모두 포함 (공용 액세스)
+# - agent-core 그룹: admin, dev 포함 (핵심 보안 자산 접근)
+sudo usermod -aG agent-common agent-admin
+sudo usermod -aG agent-common agent-dev
+sudo usermod -aG agent-common agent-test
 sudo usermod -aG agent-core agent-admin
 sudo usermod -aG agent-core agent-dev
-sudo usermod -aG agent-common agent-test
 
-# 4. 디렉토리 소유권 및 표준 권한 설정 (README 4.2 준수)
+# 4. 필수 키 파일 생성 ($AGENT_HOME/api_keys/t_secret.key)
+mkdir -p "$AGENT_HOME/api_keys"
+echo "agent_api_key_test" | sudo tee "$AGENT_HOME/api_keys/t_secret.key" >/dev/null
+
+# 5. 디렉토리 소유권 및 권한 격리 적용 (PDF 요구사항 준수)
 echo "단계 4: 디렉토리 소유권 및 그룹 기반 권한 격리 적용 중..."
 
-# 핵심 자산(api_keys, log): agent-core 그룹원만 접근 가능 (770)
-sudo chown -R agent-admin:agent-core $AGENT_HOME/api_keys
-sudo chown -R agent-admin:agent-core $AGENT_HOME/log
-sudo chmod 770 $AGENT_HOME/api_keys
-sudo chmod 770 $AGENT_HOME/log
+# 핵심 자산(api_keys, log): agent-core 그룹만 접근 가능 (770)
+sudo chown -R agent-admin:agent-core "$AGENT_HOME/api_keys"
+sudo chmod 770 "$AGENT_HOME/api_keys"
+sudo chmod 660 "$AGENT_HOME/api_keys/t_secret.key"
 
-# 공용 데이터(upload_files): 모든 그룹이 협업을 위해 접근 가능 (775)
-sudo chown -R agent-admin:agent-common $AGENT_HOME/upload_files
-sudo chmod 775 $AGENT_HOME/upload_files
+sudo mkdir -p /var/log/agent-app
+sudo chown -R agent-admin:agent-core /var/log/agent-app
+sudo chmod 770 /var/log/agent-app
 
-# 5. ACL(Access Control List)을 통한 정밀 권한 주입
-# 리눅스 기본 권한을 넘어, 특정 그룹에 대해 세밀한 접근 제어를 추가합니다.
+# 공용 데이터(upload_files): agent-common 그룹 R/W 가능 (775)
+mkdir -p "$AGENT_HOME/upload_files"
+sudo chown -R agent-admin:agent-common "$AGENT_HOME/upload_files"
+sudo chmod 775 "$AGENT_HOME/upload_files"
+
+# 6. monitor.sh 소유자 및 권한 설정 (소유자: agent-dev, 그룹: agent-core, 권한: 750)
+if [ -f "$AGENT_HOME/bin/monitor.sh" ]; then
+    sudo chown agent-dev:agent-core "$AGENT_HOME/bin/monitor.sh"
+    sudo chmod 750 "$AGENT_HOME/bin/monitor.sh"
+fi
+
+# 7. ACL(Access Control List) 확장 권한 적용
 echo "단계 5: ACL 확장 권한 설정 중..."
-# log 디렉토리에 대해 agent-core 그룹에 명시적인 R-W-X 권한 부여
-sudo setfacl -m g:agent-core:rwx $AGENT_HOME/log
-# upload_files 디렉토리에 대해 agent-common 그룹에 읽기/실행 권한 부여
-sudo setfacl -m g:agent-common:rx $AGENT_HOME/upload_files
+if command -v setfacl &>/dev/null; then
+    sudo setfacl -m g:agent-core:rwx /var/log/agent-app 2>/dev/null || true
+    sudo setfacl -m g:agent-common:rwx "$AGENT_HOME/upload_files" 2>/dev/null || true
+fi
 
 echo "------------------------------------------------"
 echo "🔍 [권한 검증 결과] 주요 디렉토리 권한 상태:"
-ls -ld $AGENT_HOME/api_keys $AGENT_HOME/log $AGENT_HOME/upload_files
+ls -ld "$AGENT_HOME/api_keys" /var/log/agent-app "$AGENT_HOME/upload_files"
 echo "------------------------------------------------"
 echo "🎉 완료: RBAC 계정 체계 및 권한 격리가 성공적으로 구축되었습니다."
