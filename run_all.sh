@@ -1,27 +1,27 @@
 #!/bin/bash
 # ==============================================================================
-# 🚀 MASTER ORCHESTRATOR & DEMO PIPELINE (run_all.sh)
+# 🚀 MASTER ORCHESTRATOR & INTERACTIVE DEMO PIPELINE (run_all.sh)
 # ------------------------------------------------------------------------------
 # 본 마스터 스크립트는 리눅스 시스템 관제 및 보안 구축 미션의 전 과정을 
-# 단 한 번의 명령어로 전자동(End-to-End) 실행하고 검증하는 통합 오케스트레이터입니다.
+# 1) [전자동 일괄 실행 모드]와 2) [단계별 엔터 진행 모드]로 지원하는 
+# 통합 오케스트레이터 및 라이브 시연 도구입니다.
 #
-# [실행 단계 (Execution Pipeline)]
-#  Phase 1. 인프라 프로비저닝 (setup/01 ~ 04 일괄 자동 구축)
-#  Phase 2. 런타임 환경 구성 및 애플리케이션 5단계 부트 기동 (Agent READY)
-#  Phase 3. 실시간 시스템 관제 및 자원 모니터링 (bin/monitor.sh)
-#  Phase 4. Crontab 1분 무인 자동화 등록 및 스케줄 검증
-#  Phase 5. 보너스 과제 2종 실행 (bin/report.sh & bin/log_rotate_archive.sh)
-#  Phase 6. 통합 무결성 테스트 수트 실행 (tests/run_tests.sh - 100% PASS)
+# [실행 옵션 (CLI Flags)]
+#   ./run_all.sh         : 모드 선택 대화창 표시 (기본)
+#   ./run_all.sh --auto  : 1번 전자동 일괄 실행 (Non-interactive)
+#   ./run_all.sh --step  : 2번 단계별 엔터 진행 (Step-by-Step Interactive)
+#   ./run_all.sh --test  : 3번 검증 테스트 수트만 즉시 실행
 # ==============================================================================
 
 set -e
 
-# 색상 정의
+# 색상 및 스타일 정의
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
+MAGENTA='\033[1;35m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
@@ -42,9 +42,64 @@ print_success() {
     echo -e "${GREEN}${BOLD}✔ [SUCCESS] $1${NC}"
 }
 
-print_header "🛡️ LINUX SYSTEM MONITOR - FULL AUTOMATION MASTER PIPELINE"
-echo -e "프로젝트 위치: ${BOLD}$PROJECT_ROOT${NC}"
-echo -e "시작 시각: $(date '+%Y-%m-%d %H:%M:%S')"
+# ------------------------------------------------------------------------------
+# 모드 선택 및 인자 파싱
+# ------------------------------------------------------------------------------
+MODE=""
+INTERACTIVE=false
+
+if [ "$1" = "--auto" ] || [ "$1" = "-a" ]; then
+    MODE="1"
+elif [ "$1" = "--step" ] || [ "$1" = "-s" ] || [ "$1" = "-i" ]; then
+    MODE="2"
+elif [ "$1" = "--test" ] || [ "$1" = "-t" ]; then
+    MODE="3"
+fi
+
+if [ -z "$MODE" ]; then
+    clear 2>/dev/null || true
+    echo -e "${BLUE}${BOLD}====================================================================${NC}"
+    echo -e "${CYAN}${BOLD}  🛡️ LINUX SYSTEM MONITOR - MASTER DEMO & TEST PIPELINE${NC}"
+    echo -e "${BLUE}${BOLD}====================================================================${NC}"
+    echo -e "프로젝트 위치: ${BOLD}$PROJECT_ROOT${NC}"
+    echo -e "현재 시각: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo -e "\n${BOLD}실행할 시연 모드를 선택해 주세요:${NC}"
+    echo -e "  ${GREEN}${BOLD}[1] ⚡ 전자동 일괄 실행 모드${NC} (Full Automation - 대기 없이 원스톱 실행)"
+    echo -e "  ${YELLOW}${BOLD}[2] 🎯 인터랙티브 단계별 모드${NC} (Step-by-Step - 각 단계 결과 확인 후 [Enter])"
+    echo -e "  ${MAGENTA}${BOLD}[3] 🧪 무결성 검증 테스트 전용 모드${NC} (Test-Only - run_tests.sh 즉시 실행)"
+    echo -e "${BLUE}--------------------------------------------------------------------${NC}"
+    
+    if [ -t 0 ]; then
+        read -r -p "선택 번호를 입력하세요 [1/2/3] (기본값: 1): " USER_INPUT
+        MODE="${USER_INPUT:-1}"
+    else
+        MODE="1"
+    fi
+fi
+
+if [ "$MODE" = "2" ]; then
+    INTERACTIVE=true
+    echo -e "\n${YELLOW}${BOLD}🎯 [인터랙티브 단계별 모드]가 활성화되었습니다.${NC}"
+    echo -e "각 단계의 실행 결과를 확인하신 후, ${BOLD}[Enter]${NC}를 누르면 다음 단계로 진행합니다.\n"
+elif [ "$MODE" = "3" ]; then
+    print_header "🧪 무결성 검증 테스트 수트 즉시 실행"
+    bash "$PROJECT_ROOT/tests/run_tests.sh"
+    exit 0
+else
+    echo -e "\n${GREEN}${BOLD}⚡ [전자동 일괄 실행 모드]로 시작합니다.${NC}\n"
+fi
+
+pause_step() {
+    local next_step_name="$1"
+    if [ "$INTERACTIVE" = true ]; then
+        echo -e "\n${MAGENTA}${BOLD}────────────────────────────────────────────────────────────────────${NC}"
+        echo -e "${CYAN}${BOLD}👉 다음 단계 [${next_step_name}] 로 진행하려면 [Enter] 키를 누르세요... ${NC}${NC}(중단: Ctrl+C)"
+        echo -e "${MAGENTA}${BOLD}────────────────────────────────────────────────────────────────────${NC}"
+        if [ -t 0 ]; then
+            read -r -p ""
+        fi
+    fi
+}
 
 # ------------------------------------------------------------------------------
 # Phase 1: 인프라 기초 및 보안 요새화 프로비저닝 (setup/01 ~ 04)
@@ -55,18 +110,22 @@ print_step "1-1. 시스템 환경 및 패키지 최적화 (setup/01_env_setup.sh
 bash setup/01_env_setup.sh
 source ~/.bash_profile 2>/dev/null || true
 print_success "기초 환경 및 전역 환경 변수 등록 완료"
+pause_step "1-2. SSH 포트 20022 및 UFW 방화벽 설정"
 
 print_step "1-2. SSH 포트 20022 난독화 및 UFW 방화벽 화이트리스트 (setup/02_security_setup.sh)"
 bash setup/02_security_setup.sh
 print_success "SSH 20022 전환 및 방화벽 화이트리스트(20022, 15034) 요새화 완료"
+pause_step "1-3. RBAC 계정 체계 및 디렉토리 권한 격리"
 
 print_step "1-3. RBAC 계정 설계 및 보안 자산 770 권한 격리 (setup/03_user_setup.sh)"
 bash setup/03_user_setup.sh
 print_success "agent-admin/dev/test 계정 및 core/common 그룹 격리 완료"
+pause_step "1-4. Crontab 1분 무인 관제 자동 스케줄러 등록"
 
 print_step "1-4. 1분 주기 Cron 무인 관제 자동 스케줄러 등록 (setup/04_cron_setup.sh)"
 bash setup/04_cron_setup.sh
 print_success "Crontab 무인 자동화 등록 완료"
+pause_step "Phase 2. 애플리케이션 배포 및 5단계 Boot Sequence 기동"
 
 # ------------------------------------------------------------------------------
 # Phase 2: 런타임 환경 동기화 및 애플리케이션 기동 (Agent READY)
@@ -109,12 +168,9 @@ sudo chmod 755 /home/agent-admin/agent-app/bin/report.sh /home/agent-admin/agent
 sudo chown -R agent-admin:agent-admin /home/agent-admin/agent-app/agent-app 2>/dev/null || true
 
 print_success "런타임 자산 및 보안 권한 동기화 완료"
+pause_step "2-2. 애플리케이션 백그라운드 기동 및 5단계 부트 통과"
 
 print_step "2-2. 애플리케이션 백그라운드 기동 및 포트 15034 바인딩"
-# 기존 실행 중인 agent-app 정리 후 새로 기동
-sudo pkill -x "agent-app" 2>/dev/null || true
-sleep 1
-
 sudo -u agent-admin bash -c '
 export AGENT_HOME=/home/agent-admin/agent-app
 export AGENT_PORT=15034
@@ -128,10 +184,13 @@ sleep 2
 
 APP_PID=$(pgrep -x "agent-app" | head -n 1 || true)
 if [ -n "$APP_PID" ]; then
-    print_success "애플리케이션 정상 구동 확인 (PID: $APP_PID, Port: 15034)"
+    print_success "애플리케이션 정상 구동 확인 (PID: $APP_PID, Port: 15034 LISTEN)"
+    echo -e "  [부트 시퀀스 출력 스냅샷]"
+    sudo tail -n 6 /var/log/agent-app/app_stdout.log 2>/dev/null || true
 else
     echo -e "${RED}경고: agent-app 백그라운드 프로세스 확인 필요${NC}"
 fi
+pause_step "Phase 3. 실시간 시스템 관제 및 자원 모니터링"
 
 # ------------------------------------------------------------------------------
 # Phase 3: 실시간 관제 스크립트 실행 (bin/monitor.sh)
@@ -140,10 +199,12 @@ print_header "Phase 3: 실시간 시스템 관제 및 자원 수집 (bin/monitor
 
 print_step "3-1. 관제 헬스체크 및 메트릭 수집 실행"
 sudo -u agent-admin /home/agent-admin/agent-app/bin/monitor.sh
+pause_step "3-2. 누적된 시계열 관제 로그 확인"
 
 print_step "3-2. 누적된 시계열 관제 로그 확인 (/var/log/agent-app/monitor.log)"
 sudo tail -n 5 /var/log/agent-app/monitor.log
 print_success "관제 데이터 정상 로깅 누적 확인"
+pause_step "Phase 4. 보너스 기능 2종 시연 (Report & Archive)"
 
 # ------------------------------------------------------------------------------
 # Phase 4: 보너스 기능 2종 시연
@@ -152,10 +213,12 @@ print_header "Phase 4: 보너스 자동화 기능 시연 (Report & Archive)"
 
 print_step "4-1. [보너스 1] Awk 기반 리소스 통계 분석 리포트 (bin/report.sh)"
 sudo -u agent-admin /home/agent-admin/agent-app/bin/report.sh
+pause_step "4-2. [보너스 2] 시간 기반 로그 아카이브 및 보존 정책"
 
 print_step "4-2. [보너스 2] 시간 기반 로그 아카이브 및 보존 정책 (bin/log_rotate_archive.sh)"
 sudo -u agent-admin /home/agent-admin/agent-app/bin/log_rotate_archive.sh
 print_success "보너스 2종 정상 동작 확인"
+pause_step "Phase 5. 최종 통합 무결성 테스트 수트 실행"
 
 # ------------------------------------------------------------------------------
 # Phase 5: 통합 무결성 테스트 수트 원클릭 검증
