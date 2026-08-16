@@ -41,8 +41,15 @@ echo "[HEALTH CHECK]"
 
 # 3.1 프로세스 생존 검증
 # [개념 설명] 'pgrep -f [프로세스명]'은 실행 중인 프로세스의 명령어 라인 전체에서 프로세스 ID(PID)를 찾습니다.
-# 'head -n 1'은 여러 개의 프로세스가 탐색될 경우 가장 첫 번째 메인 프로세스 PID만 선택합니다.
-PID=$(pgrep -f "$APP_NAME" | head -n 1)
+# 'agent_app.py' 또는 실행 바이너리 'agent-app' 모두 유연하게 감지하여 이식성을 극대화합니다.
+PID=$(pgrep -f "$APP_NAME" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | head -n 1)
+if [ -z "$PID" ] && [ "$APP_NAME" = "agent_app.py" ]; then
+    PID=$(pgrep -x "agent-app" 2>/dev/null | head -n 1)
+    if [ -z "$PID" ]; then
+        PID=$(pgrep -f "agent-app" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | head -n 1)
+    fi
+    [ -n "$PID" ] && APP_NAME="agent-app"
+fi
 
 if [ -z "$PID" ]; then
     # [조건문] PID 변수가 빈 문자열(-z)이라면 프로세스가 실행되지 않은 비정상 상태입니다.
@@ -73,18 +80,29 @@ else
     echo "Checking port $AGENT_PORT... [OK]"
 fi
 
-# 3.3 방화벽(UFW) 활성화 상태 점검
-# [개념 설명] UFW(Uncomplicated Firewall)는 리눅스 방화벽 관리 도구입니다.
-# 방화벽은 꺼져 있더라도 서비스 자체는 구동되므로, 경고만 출력하고 스크립트를 중단하지는 않습니다.
+# 3.3 방화벽(UFW 또는 firewalld) 활성화 상태 점검
+# [개념 설명] UFW 및 firewalld는 리눅스 방화벽 관리 도구입니다.
+# 일반 계정 실행 환경을 고려하여 sudo ufw status 외에도 /etc/ufw/ufw.conf 설정 파일 등을 함께 점검합니다.
 if command -v ufw &>/dev/null; then
     FW_STATUS=$(sudo ufw status 2>/dev/null | grep -i "Status: active")
+    if [ -z "$FW_STATUS" ] && [ -f /etc/ufw/ufw.conf ]; then
+        if grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/null; then
+            FW_STATUS="Status: active"
+        fi
+    fi
     if [ -z "$FW_STATUS" ]; then
         echo "[WARNING] UFW Firewall is NOT active!"
     else
         echo "Checking Firewall... [OK]"
     fi
+elif command -v firewall-cmd &>/dev/null; then
+    if firewall-cmd --state 2>/dev/null | grep -q "running"; then
+        echo "Checking Firewall... [OK]"
+    else
+        echo "[WARNING] firewalld Firewall is NOT active!"
+    fi
 else
-    echo "Checking Firewall... [SKIPPED] (ufw not installed)"
+    echo "Checking Firewall... [SKIPPED] (Firewall tool not installed)"
 fi
 
 # ------------------------------------------------------------------------------

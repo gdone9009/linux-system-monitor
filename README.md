@@ -1,4 +1,27 @@
-# 🛡️ 시스템 관제 자동화 및 보안 구축 프로젝트
+# 🛡️ 시스템 관제 자동화 및 보안 구축 프로젝트 (B1-1)
+
+| 항목 | 상세 정보 |
+| :--- | :--- |
+| **학습 단계** | AI/SW 기초 (AI/SW Basic) |
+| **학습 주제** | Linux와 OS (Linux & OS) |
+| **미션 과제명** | **컴퓨터가 알아서 자기 상태를 점검하게 만들기** |
+| **작성자 (탐험가명)** | 정창석 (`gdone9009`) |
+| **프로젝트 URL** | [https://github.com/gdone9009/linux-system-monitor](https://github.com/gdone9009/linux-system-monitor) |
+| **대상 브랜치** | `main` |
+| **요구사항 충족도** | **8/8 필수 항목 PASS (100%) + 보너스 2종 완수** |
+
+---
+
+## 📚 프로젝트 핵심 산출물 및 문서 바로가기
+
+* 📋 **[미션 공식 명세서 (MISSION_SPEC_B1_1.md)](MISSION_SPEC_B1_1.md)**: 미션 배경, 기능 요구사항, 제약사항, 테스트 케이스 기준
+* ❓ **[평가 문항 & 완벽 해설서 (EVALUATION_QUESTIONS_1_1.md)](EVALUATION_QUESTIONS_1_1.md)**: 4개 평가 영역(총 19문항)에 대한 실전 검증 증적 및 모범 답변서
+* 📄 **[요구사항 수행 내역서 (REQUIREMENTS_CHECKLIST.md)](REQUIREMENTS_CHECKLIST.md)**: [산출물 1] 8대 공식 평가 항목 증적 체크리스트 (100% 통과)
+* 🎬 **[실전 시연 매뉴얼 (DEMO_MANUAL_1_1.md)](DEMO_MANUAL_1_1.md)**: 라이브 데모 5단계 실행 명령어 및 기술 배경
+* 🎤 **[구조화 발표 스크립트 (PRESENTATION_SCRIPT_1_1.md)](PRESENTATION_SCRIPT_1_1.md)**: 구술 평가용 대본 및 심층 Q&A 대응
+* 📖 **[초보자용 9부작 백과사전 교재 (manual.md)](manual.md)**: OS 원리부터 네트워크 보안, Awk 파싱까지 완전 해설
+
+---
 
 ## 1. 프로젝트 개요 (Overview)
 
