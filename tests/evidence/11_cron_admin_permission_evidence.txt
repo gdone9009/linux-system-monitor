@@ -1,0 +1,7 @@
+[Agent Admin User & Groups]
+uid=1000(agent-admin) gid=1002(agent-admin) groups=1002(agent-admin),1000(agent-core),1001(agent-common)
+[Monitor.sh File Ownership & 750 Permissions]
+-rwxr-x--- 1 agent-dev agent-core 11001 Aug 16 17:32 /home/agent-admin/agent-app/bin/monitor.sh
+[Crontab Entry for agent-admin]
+
+* * * * * /home/agent-admin/agent-app/bin/monitor.sh >/dev/null 2>&1

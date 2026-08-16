@@ -318,14 +318,16 @@ fi
 ### Q4.1. 모니터링 대상이 웹 서버(Nginx 등)로 바뀐다면, monitor.sh에서 바꿔야 할 핵심 포인트(프로세스/포트/로그/임계값)를 설명할 수 있는가?
 
 #### 💡 모범 답변 및 해설
-1. **프로세스 식별 변수 (`APP_NAME`)**
-   * `APP_NAME="nginx"`로 변경. Nginx는 Master-Worker 멀티 프로세스 구조이므로 `pgrep -f "nginx: master process"`를 지정하여 메인 마스터 프로세스 PID를 타깃팅.
-2. **서비스 포트 변수 (`AGENT_PORT`)**
-   * 웹 표준 포트인 `80`(HTTP) 또는 `443`(HTTPS)으로 변경.
-3. **로그 경로 및 권한 (`AGENT_LOG_DIR`)**
-   * `/var/log/nginx/` 또는 전용 웹 관제 경로로 설정하고, 웹 서버 실행 계정(`www-data` 또는 `nginx`)의 권한과 일치시킴.
-4. **리소스 임계치(Threshold) 현실화**
-   * 웹 서버는 동시 접속자 처리에 따라 순간 CPU 점유가 높아질 수 있으므로 CPU 임계치를 `70~80%`, 메모리 `50%` 수준으로 웹 트래픽 특성에 맞게 상향 조정.
+웹 서버(Nginx)로 전환 시 변경해야 할 핵심 4대 포인트와 명시적 전환 체크리스트는 다음과 같습니다:
+
+| 점검 영역 | 기존 설정 (`agent-app`) | 웹 서버 전환 설정 (`Nginx`) | 전환 조치 및 설정 근거 |
+| :--- | :--- | :--- | :--- |
+| **① 프로세스 식별** | `APP_NAME="agent-app"` | `APP_NAME="nginx"` | Master-Worker 구조이므로 `pgrep -f "nginx: master process"`로 마스터 PID를 타깃팅 |
+| **② 서비스 포트** | `AGENT_PORT=15034` | `AGENT_PORT=80` (또는 `443`) | 웹 표준 포트(80/443)로 전환 및 UFW 방화벽 화이트리스트(`sudo ufw allow 80/tcp`) 개방 |
+| **③ 로그 경로 & 권한** | `/var/log/agent-app/` | `/var/log/nginx/` | 웹 서버 전용 로그 경로 및 `www-data:adm` 실행 계정 권한 정합 |
+| **④ 리소스 임계치** | `CPU > 20%`, `MEM > 10%` | `CPU > 75%`, `MEM > 60%` | 대규모 웹 트래픽 I/O 및 워커 동시 처리에 적합한 실무 임계치로 상향 튜닝 |
+
+*(상세 전환 가이드 및 설정 템플릿: `WEB_SERVER_TRANSITION_CHECKLIST.md` 참조)*
 
 ---
 

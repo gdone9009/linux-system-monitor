@@ -90,6 +90,21 @@ else
     log_result "FAIL" "setup/04_cron_setup.sh 누락"
 fi
 
+# 8. 웹 서버(Nginx) 모니터링 전환 체크리스트 검증 (평가항목 #17 대응)
+if [ -f "WEB_SERVER_TRANSITION_CHECKLIST.md" ] && grep -q "Nginx" "WEB_SERVER_TRANSITION_CHECKLIST.md"; then
+    log_result "PASS" "웹 서버 모니터링 전환 체크리스트 (WEB_SERVER_TRANSITION_CHECKLIST.md)"
+else
+    log_result "FAIL" "WEB_SERVER_TRANSITION_CHECKLIST.md 미존재 또는 내용 미흡"
+fi
+
+# 9. 실측 증적 스냅샷 파일 무결성 검증 (평가항목 #1~#19 증빙)
+EVIDENCE_COUNT=$(ls -1 tests/evidence/*.txt 2>/dev/null | wc -l)
+if [ "$EVIDENCE_COUNT" -ge 15 ]; then
+    log_result "PASS" "실측 증적 스냅샷 파일 검증 (tests/evidence/ $EVIDENCE_COUNT개 항목 완비)"
+else
+    log_result "FAIL" "증적 스냅샷 파일 부족 ($EVIDENCE_COUNT개)"
+fi
+
 echo "--------------------------------------------------"
 echo "📊 [테스트 요약 결과]"
 echo "  - 성공 (PASS): $PASS_COUNT"

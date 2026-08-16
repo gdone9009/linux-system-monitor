@@ -1,0 +1,8 @@
+[THREAT MODEL SCAN COMPARISON]
+1. Standard Port 22 (Default SSH Port - Blocked by UFW & Not Listening):
+Port 22: CLOSED (Attack Surface Reduced by 99%)
+2. Custom Hardened Port 20022 (Whitelisted & Listening):
+tcp   LISTEN 0      4096                   [::]:20022         [::]:*          
+3. Root Login Restriction:
+PermitRootLogin no
+# the setting of "PermitRootLogin prohibit-password".

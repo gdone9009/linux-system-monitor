@@ -1,0 +1,4 @@
+drwxrwx---  1 agent-admin agent-core     24 Aug 16 17:21 /home/agent-admin/agent-app/api_keys
+-rwxr-x---  1 agent-dev   agent-core  11001 Aug 16 17:32 /home/agent-admin/agent-app/bin/monitor.sh
+drwxrwxr-x  1 agent-admin agent-admin     0 Aug 16 17:21 /home/agent-admin/agent-app/upload_files
+drwxrwx---+ 1 agent-admin agent-core     62 Aug 16 17:22 /var/log/agent-app

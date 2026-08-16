@@ -1,0 +1,5 @@
+[BEFORE ROTATION]
+-rw-rw-r-- 1 agent-admin agent-admin 11M Aug 16 17:42 /tmp/test_log_rot/monitor.log
+[AFTER ROTATION]
+-rw-rw-r-- 1 agent-admin agent-admin  69 Aug 16 17:42 /tmp/test_log_rot/monitor.log
+-rw-rw-r-- 1 agent-admin agent-admin 11M Aug 16 17:42 /tmp/test_log_rot/monitor.log.1

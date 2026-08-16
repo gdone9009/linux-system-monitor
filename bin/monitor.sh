@@ -75,8 +75,14 @@ fi
 
 if [ "$PORT_CHECK" = "FAILED" ]; then
     echo "Checking port $AGENT_PORT... [FAILED]"
+    # [장애 원인 자동 진단] 프로세스 바인딩 실패 vs 방화벽 차단 상태 자동 판별
+    DIAG_MSG="Port binding failure detected on port $AGENT_PORT"
+    if [ -n "$PID" ]; then
+        DIAG_MSG="$DIAG_MSG (Process PID:$PID is alive but not listening on 0.0.0.0:$AGENT_PORT)"
+    fi
     TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-    echo "[$TIMESTAMP] [ERROR] Port $AGENT_PORT is NOT listening!" >> "$LOG_FILE"
+    echo "[$TIMESTAMP] [ERROR] Port $AGENT_PORT is NOT listening! Diagnosis: $DIAG_MSG" >> "$LOG_FILE"
+    echo "  [DIAGNOSIS] $DIAG_MSG"
     exit 1
 else
     echo "Checking port $AGENT_PORT... [OK]"

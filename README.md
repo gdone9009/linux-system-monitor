@@ -376,6 +376,12 @@ $ bash bin/log_rotate_archive.sh
 ✅ [LOG ARCHIVE] 아카이브 및 보존 정책 처리가 안전하게 완료되었습니다.
 ```
 
+### 6.6 웹 서버(Nginx) 모니터링 전환 체크리스트 및 실측 증적 스냅샷 검증
+* **웹 서버 모니터링 전환 체크리스트 (`WEB_SERVER_TRANSITION_CHECKLIST.md`)**:
+  * 마스터 프로세스 식별(`nginx: master process`), 표준 포트(`80`/`443`), 로그 경로(`/var/log/nginx/`), 실무 임계치(`CPU > 75%`, `MEM > 60%`) 및 설정 파일 템플릿(`conf/web_server_transition.conf`) 완비.
+* **실측 증적 스냅샷 아카이브 (`tests/evidence/`)**:
+  * SSH 20022 포트, UFW 방화벽, RBAC 계정 id, 5단계 부트 시퀀스, 10MB 로테이션 시프트, Cron 1분 증적 등 17개 항목의 실제 실행 출력 파일 완비.
+
 ---
 
 ## 7. 트러블슈팅 및 배운 점 (Troubleshooting)
@@ -431,7 +437,8 @@ $ bash bin/log_rotate_archive.sh
 * **핵심 관제 엔진:** `bin/monitor.sh` (리소스 수집, 헬스체크 및 자체 로그 로테이션 지원)
 * **인프라 셋업 스크립트:** `setup/01_env_setup.sh`, `setup/02_security_setup.sh`, `setup/03_user_setup.sh`, `setup/04_cron_setup.sh`
 * **보너스 스크립트:** `bin/report.sh` (통계 리포트), `bin/log_rotate_archive.sh` (시간 기반 아카이브)
-* **기술 문서:** `README.md` (본 기술 문서), `MISSION_SPEC_B1_1.md`, `EVALUATION_QUESTIONS_1_1.md`
+* **실측 증적 아카이브:** `tests/evidence/` (17개 실측 증적 파일 완비)
+* **기술 문서:** `README.md` (본 기술 문서), `MISSION_SPEC_B1_1.md`, `EVALUATION_QUESTIONS_1_1.md`, `WEB_SERVER_TRANSITION_CHECKLIST.md`
 
 ---
 

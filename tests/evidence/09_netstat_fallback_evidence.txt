@@ -1,0 +1,4 @@
+[1. Standard ss execution]
+tcp   LISTEN 1      1                   0.0.0.0:15034      0.0.0.0:*          
+[2. Netstat fallback simulation]
+netstat fallback successful

@@ -11,7 +11,8 @@
 # 1. 경로 및 프로파일 로드
 # ------------------------------------------------------------------------------
 source ~/.bash_profile 2>/dev/null
-LOG_DIR="${AGENT_LOG_DIR:-$HOME/agent-app/log}"
+LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
+[ ! -d "$LOG_DIR" ] && LOG_DIR="$HOME/agent-app/log"
 ARCHIVE_DIR="/var/log/monitor/agent-app/archive"
 
 echo "📦 [LOG ARCHIVE] 시간 기반 로그 아카이브 및 삭제 정책 프로세스를 시작합니다..."

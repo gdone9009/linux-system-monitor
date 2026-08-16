@@ -1,0 +1,6 @@
+[After > (Overwrite) - Only 1 line remains]
+Line 2
+[After >> (Append) - All lines accumulated]
+Line 2
+Line 3
+Line 4

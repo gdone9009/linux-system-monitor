@@ -1,0 +1,5 @@
+[] [WARNING] PID:4844 CPU:25.4% MEM:0.1% DISK_USED:23% Details: [CPU threshold exceeded (25.4% > 20%)]
+[] [WARNING] PID:4844 CPU:0.1% MEM:15.2% DISK_USED:23% Details: [MEM threshold exceeded (15.2% > 10%)]
+[] [WARNING] PID:4844 CPU:0.1% MEM:0.1% DISK_USED:85% Details: [DISK threshold exceeded (85% > 80%)]
+--- Alert Events JSON ---
+{"timestamp":"2026-08-16 17:43:02","status":"WARNING","pid":4844,"cpu":"25.4","mem":"0.1","disk":23,"details":"[CPU threshold exceeded (25.4% > 20%)]"}

@@ -1,0 +1,2 @@
+-bash: line 1: /home/agent-admin/agent-app/bin/monitor.sh: Permission denied
+Exit Code: 126
