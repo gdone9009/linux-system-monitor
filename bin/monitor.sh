@@ -22,13 +22,15 @@ source ~/.bash_profile 2>/dev/null
 # 우측의 기본값($HOME/agent-app)을 사용합니다. 이를 통해 하드코딩 오류를 완벽히 방지합니다.
 CURRENT_USER=$(whoami)
 AGENT_HOME="${AGENT_HOME:-$HOME/agent-app}"
-AGENT_LOG_DIR="${AGENT_LOG_DIR:-$AGENT_HOME/log}"
+AGENT_LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
+# /var/log/agent-app 쓰기 권한이 없을 경우 유저 홈 디렉토리($AGENT_HOME/log)로 안전하게 Fallback
+if ! mkdir -p "$AGENT_LOG_DIR" 2>/dev/null || [ ! -w "$AGENT_LOG_DIR" ]; then
+    AGENT_LOG_DIR="$AGENT_HOME/log"
+    mkdir -p "$AGENT_LOG_DIR" 2>/dev/null
+fi
 AGENT_PORT="${AGENT_PORT:-15034}"
 APP_NAME="${APP_NAME:-agent_app.py}" 
 LOG_FILE="$AGENT_LOG_DIR/monitor.log"
-
-# 로그를 저장할 디렉토리가 없으면 'mkdir -p' 옵션을 통해 부모 디렉토리까지 안전하게 만듭니다.
-mkdir -p "$AGENT_LOG_DIR"
 
 echo "====== SYSTEM MONITOR START ======"
 
@@ -82,13 +84,13 @@ fi
 
 # 3.3 방화벽(UFW 또는 firewalld) 활성화 상태 점검
 # [개념 설명] UFW 및 firewalld는 리눅스 방화벽 관리 도구입니다.
-# 일반 계정 실행 환경을 고려하여 sudo ufw status 외에도 /etc/ufw/ufw.conf 설정 파일 등을 함께 점검합니다.
+# 일반 계정 및 Cron 무인 실행 시 불필요한 sudo 인증 오류가 남지 않도록 /etc/ufw/ufw.conf 및 sudo -n을 활용합니다.
 if command -v ufw &>/dev/null; then
-    FW_STATUS=$(sudo ufw status 2>/dev/null | grep -i "Status: active")
-    if [ -z "$FW_STATUS" ] && [ -f /etc/ufw/ufw.conf ]; then
-        if grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/null; then
-            FW_STATUS="Status: active"
-        fi
+    FW_STATUS=""
+    if [ -f /etc/ufw/ufw.conf ] && grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/null; then
+        FW_STATUS="Status: active"
+    else
+        FW_STATUS=$(sudo -n ufw status 2>/dev/null | grep -i "Status: active")
     fi
     if [ -z "$FW_STATUS" ]; then
         echo "[WARNING] UFW Firewall is NOT active!"

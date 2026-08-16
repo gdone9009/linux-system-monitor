@@ -17,7 +17,7 @@ if [ ! -f "$MONITOR_SCRIPT" ]; then
     MONITOR_SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/bin/monitor.sh"
 fi
 
-chmod +x "$MONITOR_SCRIPT"
+chmod +x "$MONITOR_SCRIPT" 2>/dev/null || true
 
 # 1분 주기 Cron 작업 구문 정의
 CRON_JOB="* * * * * $MONITOR_SCRIPT >/dev/null 2>&1"
