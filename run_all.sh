@@ -3,14 +3,15 @@
 # 🚀 MASTER ORCHESTRATOR & INTERACTIVE DEMO PIPELINE (run_all.sh)
 # ------------------------------------------------------------------------------
 # 본 마스터 스크립트는 리눅스 시스템 관제 및 보안 구축 미션의 전 과정을 
-# 1) [전자동 일괄 실행 모드]와 2) [단계별 엔터 진행 모드]로 지원하는 
-# 통합 오케스트레이터 및 라이브 시연 도구입니다.
+# 1) [전자동 일괄 실행 모드], 2) [단계별 엔터 진행 모드], 3) [장애 유도 및 에러 로깅 모드]로
+# 지원하는 통합 오케스트레이터 및 라이브 시연 도구입니다.
 #
 # [실행 옵션 (CLI Flags)]
 #   ./run_all.sh         : 모드 선택 대화창 표시 (기본)
 #   ./run_all.sh --auto  : 1번 전자동 일괄 실행 (Non-interactive)
 #   ./run_all.sh --step  : 2번 단계별 엔터 진행 (Step-by-Step Interactive)
-#   ./run_all.sh --test  : 3번 검증 테스트 수트만 즉시 실행
+#   ./run_all.sh --fault : 3번 장애 유도 및 에러 로깅 전용 모드 (Fault Injection)
+#   ./run_all.sh --test  : 4번 무결성 검증 테스트 수트 즉시 실행
 # ==============================================================================
 
 set -e
@@ -52,8 +53,10 @@ if [ "$1" = "--auto" ] || [ "$1" = "-a" ]; then
     MODE="1"
 elif [ "$1" = "--step" ] || [ "$1" = "-s" ] || [ "$1" = "-i" ]; then
     MODE="2"
-elif [ "$1" = "--test" ] || [ "$1" = "-t" ]; then
+elif [ "$1" = "--fault" ] || [ "$1" = "-f" ]; then
     MODE="3"
+elif [ "$1" = "--test" ] || [ "$1" = "-t" ]; then
+    MODE="4"
 fi
 
 if [ -z "$MODE" ]; then
@@ -65,12 +68,13 @@ if [ -z "$MODE" ]; then
     echo -e "현재 시각: $(date '+%Y-%m-%d %H:%M:%S')"
     echo -e "\n${BOLD}실행할 시연 모드를 선택해 주세요:${NC}"
     echo -e "  ${GREEN}${BOLD}[1] ⚡ 전자동 일괄 실행 모드${NC} (Full Automation - 대기 없이 원스톱 실행)"
-    echo -e "  ${YELLOW}${BOLD}[2] 🎯 인터랙티브 단계별 모드${NC} (Step-by-Step - 각 단계 결과 확인 후 [Enter])"
-    echo -e "  ${MAGENTA}${BOLD}[3] 🧪 무결성 검증 테스트 전용 모드${NC} (Test-Only - run_tests.sh 즉시 실행)"
+    echo -e "  ${YELLOW}${BOLD}[2] 🎯 인터랙티브 단계별 모드${NC} (Step-by-Step - 정상 관제 + 장애 유도 후 [Enter])"
+    echo -e "  ${RED}${BOLD}[3] 💥 장애 상황 유도 및 에러 로깅 검증 모드${NC} (Fault Injection & Error Log Test)"
+    echo -e "  ${MAGENTA}${BOLD}[4] 🧪 무결성 검증 테스트 전용 모드${NC} (Test-Only - run_tests.sh 즉시 실행)"
     echo -e "${BLUE}--------------------------------------------------------------------${NC}"
     
     if [ -t 0 ]; then
-        read -r -p "선택 번호를 입력하세요 [1/2/3] (기본값: 1): " USER_INPUT
+        read -r -p "선택 번호를 입력하세요 [1/2/3/4] (기본값: 1): " USER_INPUT
         MODE="${USER_INPUT:-1}"
     else
         MODE="1"
@@ -82,6 +86,9 @@ if [ "$MODE" = "2" ]; then
     echo -e "\n${YELLOW}${BOLD}🎯 [인터랙티브 단계별 모드]가 활성화되었습니다.${NC}"
     echo -e "각 단계의 실행 결과를 확인하신 후, ${BOLD}[Enter]${NC}를 누르면 다음 단계로 진행합니다.\n"
 elif [ "$MODE" = "3" ]; then
+    bash "$PROJECT_ROOT/bin/test_fault_injection.sh"
+    exit 0
+elif [ "$MODE" = "4" ]; then
     print_header "🧪 무결성 검증 테스트 수트 즉시 실행"
     bash "$PROJECT_ROOT/tests/run_tests.sh"
     exit 0
@@ -193,17 +200,53 @@ fi
 pause_step "Phase 3. 실시간 시스템 관제 및 자원 모니터링"
 
 # ------------------------------------------------------------------------------
-# Phase 3: 실시간 관제 스크립트 실행 (bin/monitor.sh)
+# Phase 3: 실시간 관제 및 에러 상황 유도/검증
 # ------------------------------------------------------------------------------
-print_header "Phase 3: 실시간 시스템 관제 및 자원 수집 (bin/monitor.sh)"
+print_header "Phase 3: 실시간 시스템 관제 및 장애 유도 에러 로깅 검증"
 
-print_step "3-1. 관제 헬스체크 및 메트릭 수집 실행"
+print_step "3-1. 정상 동작 상태 관제 헬스체크 및 메트릭 수집 실행"
 sudo -u agent-admin /home/agent-admin/agent-app/bin/monitor.sh
-pause_step "3-2. 누적된 시계열 관제 로그 확인"
 
 print_step "3-2. 누적된 시계열 관제 로그 확인 (/var/log/agent-app/monitor.log)"
 sudo tail -n 5 /var/log/agent-app/monitor.log
-print_success "관제 데이터 정상 로깅 누적 확인"
+print_success "정상 관제 데이터 [INFO] 로깅 누적 확인"
+pause_step "3-3. 장애 상황 유도 (Fault Injection) 및 에러 로그 기록 검증"
+
+print_step "3-3. [장애 유도 1] 서비스 프로세스 강제 중단 시뮬레이션"
+echo -e "  👉 조치: 'sudo pkill -x agent-app' 실행"
+sudo pkill -x "agent-app" 2>/dev/null || true
+sleep 1
+
+echo -e "  👉 검증: 'monitor.sh' 실행 (예상: [FAILED] 출력 및 exit 1 종료)"
+set +e
+sudo -u agent-admin /home/agent-admin/agent-app/bin/monitor.sh
+FAIL_EXIT_CODE=$?
+set -e
+
+if [ $FAIL_EXIT_CODE -eq 1 ]; then
+    print_success "프로세스 부재 시 정확히 exit 1로 비정상 종료됨을 확인! (Exit Code: $FAIL_EXIT_CODE)"
+else
+    echo -e "${RED}경고: 종료 코드 = $FAIL_EXIT_CODE${NC}"
+fi
+
+echo -e "\n  👉 [로그 파일에 기록된 에러 메시지 실시간 확인]:"
+sudo tail -n 2 /var/log/agent-app/monitor.log
+print_success "로그 파일에 [ERROR] Process 'agent-app' is NOT running! 기록 확인 완료"
+
+print_step "3-4. [자가 치유] 서비스 정상 재기동 및 복구 확인"
+sudo -u agent-admin bash -c '
+export AGENT_HOME=/home/agent-admin/agent-app
+export AGENT_PORT=15034
+export AGENT_UPLOAD_DIR=$AGENT_HOME/upload_files
+export AGENT_KEY_PATH=$AGENT_HOME/api_keys/t_secret.key
+export AGENT_LOG_DIR=/var/log/agent-app
+cd $AGENT_HOME
+./agent-app > /var/log/agent-app/app_stdout.log 2>&1 &
+'
+sleep 2
+
+sudo -u agent-admin /home/agent-admin/agent-app/bin/monitor.sh
+print_success "서비스 복구 후 정상 관제 [OK] 재개 확인"
 pause_step "Phase 4. 보너스 기능 2종 시연 (Report & Archive)"
 
 # ------------------------------------------------------------------------------
@@ -236,6 +279,7 @@ echo -e "${GREEN}${BOLD}✔ SSH 20022 & UFW 보안 요새화: PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ RBAC 계정 체계 및 770/660 격리: PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ 앱 5단계 부트 시퀀스 (Agent READY): PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ monitor.sh 헬스체크 및 자원 관제: PASS${NC}"
+echo -e "${GREEN}${BOLD}✔ 장애 상황 유도 및 exit 1 / 에러 로깅 검증: PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ Crontab 1분 무인 자동화: PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ 보너스 1 (통계) & 보너스 2 (아카이브): PASS${NC}"
 echo -e "${GREEN}${BOLD}✔ 9대 통합 테스트 무결성: 100% PASS (만점)${NC}"

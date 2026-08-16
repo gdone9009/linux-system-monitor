@@ -42,15 +42,19 @@ echo "====== SYSTEM MONITOR START ======"
 echo "[HEALTH CHECK]"
 
 # 3.1 프로세스 생존 검증
-# [개념 설명] 'pgrep -f [프로세스명]'은 실행 중인 프로세스의 명령어 라인 전체에서 프로세스 ID(PID)를 찾습니다.
-# 'agent_app.py' 또는 실행 바이너리 'agent-app' 모두 유연하게 감지하여 이식성을 극대화합니다.
-PID=$(pgrep -f "$APP_NAME" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | head -n 1)
-if [ -z "$PID" ] && [ "$APP_NAME" = "agent_app.py" ]; then
+PID=""
+if [ -n "$APP_NAME" ] && [ "$APP_NAME" != "agent_app.py" ] && [ "$APP_NAME" != "agent-app" ]; then
+    PID=$(pgrep -f "$APP_NAME" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | grep -v "run_all" | grep -v "test_fault" | head -n 1)
+else
+    # 1순위: 컴파일된 바이너리 agent-app 프로세스 정확 매칭
     PID=$(pgrep -x "agent-app" 2>/dev/null | head -n 1)
-    if [ -z "$PID" ]; then
-        PID=$(pgrep -f "agent-app" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | head -n 1)
+    if [ -n "$PID" ]; then
+        APP_NAME="agent-app"
+    else
+        # 2순위: Python 스크립트 실행 형태 매칭
+        PID=$(pgrep -f "agent_app.py" 2>/dev/null | grep -v "$$" | grep -v "monitor.sh" | grep -v "run_all" | grep -v "test_fault" | head -n 1)
+        [ -n "$PID" ] && APP_NAME="agent_app.py"
     fi
-    [ -n "$PID" ] && APP_NAME="agent-app"
 fi
 
 if [ -z "$PID" ]; then
