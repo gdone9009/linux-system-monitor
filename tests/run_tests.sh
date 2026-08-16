@@ -30,7 +30,7 @@ echo "====== INTEGRATED MISSION TEST SUITE START ======"
 
 # 1. 쉘 스크립트 문법 검사 (Syntax Check)
 SYNTAX_ERRORS=0
-for script in bin/*.sh setup/*.sh; do
+for script in *.sh bin/*.sh setup/*.sh; do
     if [ -f "$script" ]; then
         if ! bash -n "$script" 2>/dev/null; then
             echo "  - 문법 오류 발생: $script"

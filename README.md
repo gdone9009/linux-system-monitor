@@ -125,9 +125,11 @@
 
 ```text
 .
+├── run_all.sh                  # 🚀 [Master] 인프라 구축부터 관제·테스트까지 원클릭 오케스트레이터
 ├── MISSION_SPEC_B1_1.md        # 미션 공식 요구사항 명세서
 ├── EVALUATION_QUESTIONS_1_1.md # 평가 문항 4개 영역 19문항 모범 해설서
-├── REQUIREMENTS_CHECKLIST.md   # 산출물 1: 공식 평가 항목 증적 체크리스트
+├── WEB_SERVER_TRANSITION_CHECKLIST.md # 웹 서버(Nginx) 관제 전환 체크리스트 및 설정 가이드
+├── REQUIREMENTS_CHECKLIST.md   # 공식 평가 항목 증적 체크리스트
 ├── DEMO_MANUAL_1_1.md          # 실시간 라이브 시연 매뉴얼
 ├── PRESENTATION_SCRIPT_1_1.md  # 구술 평가 발표 대본
 ├── manual.md                   # 초보자용 9부작 백과사전 교재
@@ -137,7 +139,7 @@
 │   ├── 03_user_setup.sh        # RBAC 계정 설계 및 권한 격리
 │   └── 04_cron_setup.sh        # 1분 주기 Cron 무인 관제 자동 등록
 ├── bin/                        # [Execution] 런타임 실행 바이너리 및 스크립트
-│   ├── monitor.sh              # [산출물 2] 핵심 관제 엔진 (Resource & Health Check)
+│   ├── monitor.sh              # 핵심 관제 엔진 (Resource & Health Check)
 │   ├── report.sh               # (보너스 1) 로그 통계 분석 리포터
 │   └── log_rotate_archive.sh   # (보너스 2) 시간 기반 로그 압축 및 보존 관리
 ├── api_keys/                   # [Security] 민감 정보 격리 (agent-core 전용 / 권한: 770)
@@ -145,9 +147,9 @@
 ├── /var/log/agent-app/         # [Logging] 시스템 운영 기록 (agent-core 소유 / 권한: 770)
 │   ├── monitor.log             # 관제 메트릭 수집 및 경고 로그
 │   └── alert_events.json       # 임계치 초과 이벤트 JSON 기록
-├── upload_files/               # [Storage] 공용 업로드 데이터 저장소 (agent-common / 권한: 775)
 ├── tests/                      # [Testing] 무결성 검증 수트
-│   └── run_tests.sh            # 8대 요구사항 자동화 검증 스크립트
+│   ├── run_tests.sh            # 9대 요구사항 자동화 검증 스크립트
+│   └── evidence/               # 17개 평가 항목 실측 실행 출력 증적 아카이브
 └── README.md                   # 기술 문서
 ```
 
@@ -434,6 +436,7 @@ $ bash bin/log_rotate_archive.sh
 ## 9. 제출 및 주요 산출물 (Submission)
 
 ### 9.1 최종 제출 결과물
+* **통합 마스터 오케스트레이터:** `run_all.sh` (원클릭 인프라 구축, 앱 기동, 관제, 통계 및 전체 테스트 파이프라인)
 * **핵심 관제 엔진:** `bin/monitor.sh` (리소스 수집, 헬스체크 및 자체 로그 로테이션 지원)
 * **인프라 셋업 스크립트:** `setup/01_env_setup.sh`, `setup/02_security_setup.sh`, `setup/03_user_setup.sh`, `setup/04_cron_setup.sh`
 * **보너스 스크립트:** `bin/report.sh` (통계 리포트), `bin/log_rotate_archive.sh` (시간 기반 아카이브)
