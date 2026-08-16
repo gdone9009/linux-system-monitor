@@ -439,28 +439,3 @@ $ bash bin/log_rotate_archive.sh
 * **보너스 스크립트:** `bin/report.sh` (통계 리포트), `bin/log_rotate_archive.sh` (시간 기반 아카이브)
 * **실측 증적 아카이브:** `tests/evidence/` (17개 실측 증적 파일 완비)
 * **기술 문서:** `README.md` (본 기술 문서), `MISSION_SPEC_B1_1.md`, `EVALUATION_QUESTIONS_1_1.md`, `WEB_SERVER_TRANSITION_CHECKLIST.md`
-
----
-
-## 10. 🎓 초보 개발자를 위한 리눅스 시스템 관제 핵심 개념 완전 해설서
-
-### 💡 10.1 필수 핵심 개념 용어집 (Glossary)
-
-1. **Bash 쉘 (Bash Shell)**: 리눅스 운영체제와 사용자가 대화하는 '명령어 해석기'입니다. 스크립트 상단의 `#!/bin/bash`는 Bash 프로그램으로 해석하라는 선언입니다.
-2. **Cron 스케줄러 (Crontab)**: 리눅스에서 24시간 365일 무인으로 정해진 시간(예: 1분마다) 명령어를 자동으로 실행해 주는 유틸리티입니다.
-3. **SSH 포트 변경 (Security Hardening)**: SSH 기본 22번 포트를 비표준 포트(20022)로 바꾸어 외부 공격 시도 자체를 99% 차단하는 1차 방어선입니다.
-4. **RBAC & 최소 권한 원칙**: 사용자마다 역할을 분리(`admin`, `dev`, `test`)하고 필요 최소한의 권한만 부여하여 침해 사고 시 피해를 국한합니다.
-5. **Log Rotation**: 로그 파일이 10MB에 도달하면 `monitor.log.1`~`10`으로 밀어내고 노후 로그를 삭제하여 디스크를 보호하는 기술입니다.
-6. **Awk 유틸리티**: 대용량 로그 파일에서 특정 컬럼의 수치 데이터를 뽑아내어 평균, 최댓값, 최솟값을 고속으로 연산하는 텍스트 처리 언어입니다.
-
-### 🔍 10.2 관제 스크립트(`monitor.sh`) 3단계 작동 흐름 해설
-
-```text
-[1단계: Health Check] ──> 실패 시: ERROR 로그 기록 ➡️ exit 1 (즉시 비정상 종료)
-         │ 성공
-         ▼
-[2단계: Resource Audit] ──> 프로세스 CPU%, MEM%, 디스크 사용률 수집 (임계치 초과 시 [WARNING])
-         │
-         ▼
-[3단계: Log & Rotation] ──> 10MB 초과 시 파일 시프트(Rotate) ➡️ monitor.log 누적 ➡️ exit 0
-```
