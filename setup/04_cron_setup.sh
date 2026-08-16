@@ -2,7 +2,6 @@
 # =================================================================
 # Script Name: 04_cron_setup.sh
 # Description: 1분 주기 무인 관제 자동화 Cron 등록 및 해제 스크립트
-# Author: Jeong Chang-seok
 # =================================================================
 
 source ~/.bash_profile 2>/dev/null
