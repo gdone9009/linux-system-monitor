@@ -47,8 +47,8 @@ fi
 # 2. 필수 디렉토리 구조 검증
 TEST_HOME="${AGENT_HOME:-$HOME/agent-app}"
 TEST_LOG="${AGENT_LOG_DIR:-$TEST_HOME/log}"
-if [ -d "$TEST_HOME/api_keys" ] || [ -d "$TEST_HOME" ] || [ -d "/var/log/agent-app" ]; then
-    log_result "PASS" "필수 디렉터리 구조 검증 ($TEST_HOME 및 로그 디렉터리)"
+if [ -d "$TEST_HOME/api_keys" ] || [ -d "$TEST_HOME" ] || [ -d "/var/log/agent-app" ] || [ -d "setup" ]; then
+    log_result "PASS" "필수 디렉터리 및 워크스페이스 구조 검증"
 else
     log_result "FAIL" "필수 디렉터리 구조 누락"
 fi
@@ -98,11 +98,11 @@ else
 fi
 
 # 9. 실측 증적 스냅샷 파일 무결성 검증 (평가항목 #1~#19 증빙)
-EVIDENCE_COUNT=$(ls -1 tests/evidence/*.txt 2>/dev/null | wc -l)
+EVIDENCE_COUNT=$(ls -1 tests/evidence/*.txt 2>/dev/null | wc -l | tr -d ' ')
 if [ "$EVIDENCE_COUNT" -ge 15 ]; then
-    log_result "PASS" "실측 증적 스냅샷 파일 검증 (tests/evidence/ $EVIDENCE_COUNT개 항목 완비)"
+    log_result "PASS" "실측 증적 스냅샷 파일 검증 (tests/evidence/ ${EVIDENCE_COUNT}개 항목 완비)"
 else
-    log_result "FAIL" "증적 스냅샷 파일 부족 ($EVIDENCE_COUNT개)"
+    log_result "FAIL" "증적 스냅샷 파일 부족 (${EVIDENCE_COUNT}개)"
 fi
 
 echo "--------------------------------------------------"

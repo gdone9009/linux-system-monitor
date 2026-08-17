@@ -13,7 +13,7 @@
 source ~/.bash_profile 2>/dev/null
 LOG_DIR="${AGENT_LOG_DIR:-/var/log/agent-app}"
 [ ! -d "$LOG_DIR" ] && LOG_DIR="$HOME/agent-app/log"
-ARCHIVE_DIR="/var/log/monitor/agent-app/archive"
+ARCHIVE_DIR="${ARCHIVE_DIR:-/var/log/monitor/agent-app/archive}"
 
 echo "📦 [LOG ARCHIVE] 시간 기반 로그 아카이브 및 삭제 정책 프로세스를 시작합니다..."
 
@@ -34,7 +34,7 @@ fi
 # ------------------------------------------------------------------------------
 # [개념 설명] 'find [경로] -mtime +7' 은 파일의 최종 수정 시간(mtime)이 7일(7*24시간)을
 # 초과한 대상만 검색합니다. '-maxdepth 1' 은 하위 폴더는 재귀 탐색하지 않고 현재 폴더만 검색합니다.
-SEVEN_DAYS_FILES=$(find "$LOG_DIR" -maxdepth 1 -type f \( -name "*.log.*" -o -name "monitor.log.[0-9]*" \) -mtime +7 2>/dev/null)
+SEVEN_DAYS_FILES=$(find "$LOG_DIR" -maxdepth 1 -type f \( -name "*.log" -o -name "*.log.*" -o -name "monitor.log.[0-9]*" \) -mtime +7 2>/dev/null)
 
 if [ -z "$SEVEN_DAYS_FILES" ]; then
     echo "ℹ️ [INFO] 7일 이상 경과된 압축 대상 로그 파일이 없습니다."
